@@ -7,32 +7,17 @@ on:
 jobs:
   build-canary:
     name: Build canary APK
-    runs-on: macos-26
-    environment: release-builds
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Fetch Android build number
+      - name: Resolve build number
         id: android_build_number
-        env:
-          BUILD_SERVICE_TOKEN: ${{ secrets.BUILD_SERVICE_TOKEN }}
-          BUILD_SERVICE_URL: ${{ secrets.BUILD_SERVICE_URL }}
-        run: |
-          set -euo pipefail
-          URL="https://$BUILD_SERVICE_URL/v1/build-number?platform=android"
-          echo "Calling build service at $URL"
-          RESPONSE=$(curl -sS -X POST "$URL" \
-            -H "Authorization: Bearer $BUILD_SERVICE_TOKEN")
-          RESPONSE_ONE_LINE=$(printf '%s' "$RESPONSE" | tr -d '\n')
-          BUILD_NUMBER=$(printf '%s\n' "$RESPONSE_ONE_LINE" | sed -n 's/.*"buildNumber"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')
-          if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
-            echo "::error::Invalid or missing buildNumber in response: $RESPONSE"
-            exit 1
-          fi
-          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+        run: echo "build_number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Sync submodules
         run: git submodule update --init --recursive
@@ -136,10 +121,10 @@ jobs:
           fi
 
       - name: Build canary split APKs
-        run: flutter build apk --release --split-per-abi --flavor canaryFcm --build-number ${{ steps.android_build_number.outputs.build_number }} --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=fcm --dart-define=BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        run: flutter build apk --release --split-per-abi --flavor canaryFcm --build-number ${{ steps.android_build_number.outputs.build_number }} --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=fcm --dart-define=PUSH_RELAY_ORIGIN="${{ secrets.PUSH_RELAY_ORIGIN }}" --dart-define=BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Build canary combined APK
-        run: flutter build apk --release --flavor canaryFcm --build-number ${{ steps.android_build_number.outputs.build_number }} --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=fcm --dart-define=BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        run: flutter build apk --release --flavor canaryFcm --build-number ${{ steps.android_build_number.outputs.build_number }} --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=fcm --dart-define=PUSH_RELAY_ORIGIN="${{ secrets.PUSH_RELAY_ORIGIN }}" --dart-define=BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Upload canary APK artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
