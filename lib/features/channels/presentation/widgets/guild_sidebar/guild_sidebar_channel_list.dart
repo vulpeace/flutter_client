@@ -341,6 +341,20 @@ class _GuildSidebarChannelListState
                           guild: widget.guild,
                         ),
                       );
+                    case GuildSidebarEntryKind.thread:
+                      final String threadId = entry.channel!.id;
+                      return RepaintBoundary(
+                        child: ThreadSidebarTile(
+                          key: ValueKey<String>('thread:$threadId'),
+                          tileKey: _channelKeys.putIfAbsent(
+                            threadId,
+                            GlobalKey.new,
+                          ),
+                          thread: entry.channel!,
+                          guildId: widget.guildId,
+                          isLast: entry.isLastThread,
+                        ),
+                      );
                     case GuildSidebarEntryKind.voiceParticipants:
                       return VoiceChannelParticipantsList(
                         key: ValueKey<String>('vp:${entry.channel!.id}'),
@@ -360,6 +374,7 @@ class _GuildSidebarChannelListState
       child: GuildScrollIndicatorLayer(
         controller: _scrollIndicator,
         label: FluxerLocalizations.of(context).scrollIndicatorNewMessage,
+        topInset: kGuildSidebarScrollIndicatorTopInset,
         child: Opacity(
           opacity: _needsScrollClamp ? 0 : 1,
           child: channelListView,

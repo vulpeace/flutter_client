@@ -196,7 +196,7 @@
     "@mfaChooseMethod": {
         "description": "Description text when multiple MFA methods are available."
     },
-    "mfaMethodTotp": "Authenticator App",
+    "mfaMethodTotp": "Authenticator app",
     "@mfaMethodTotp": {
         "description": "Label for the TOTP authenticator method."
     },
@@ -2337,7 +2337,7 @@
             }
         }
     },
-    "securityLoginPasswordNeverChanged": "Last changed: Never",
+    "securityLoginPasswordNeverChanged": "Last changed: never",
     "@securityLoginPasswordNeverChanged": {
         "description": "Shown when the password has never been changed."
     },
@@ -2510,7 +2510,7 @@
     "@securityTfaSectionDescription": {
         "description": "Description for 2FA section."
     },
-    "securityTfaAuthenticatorApp": "Authenticator App",
+    "securityTfaAuthenticatorApp": "Authenticator app",
     "@securityTfaAuthenticatorApp": {
         "description": "Label for authenticator app row."
     },
@@ -7337,27 +7337,27 @@
     "@guildNavbarChannelType": {
         "description": "Section label for channel type selection in create channel modal."
     },
-    "guildNavbarTextChannel": "Text channel",
+    "guildNavbarTextChannel": "Text",
     "@guildNavbarTextChannel": {
         "description": "Label for the text channel type option."
     },
-    "guildNavbarTextChannelDescription": "Send messages, images, GIFs, and emoji",
+    "guildNavbarTextChannelDescription": "Send messages, images, GIFs and emoji",
     "@guildNavbarTextChannelDescription": {
         "description": "Description for the text channel type option."
     },
-    "guildNavbarVoiceChannel": "Voice channel",
+    "guildNavbarVoiceChannel": "Voice",
     "@guildNavbarVoiceChannel": {
         "description": "Label for the voice channel type option."
     },
-    "guildNavbarVoiceChannelDescription": "Hang out together with voice, video, and screen share",
+    "guildNavbarVoiceChannelDescription": "Hang out with voice, video and screen share",
     "@guildNavbarVoiceChannelDescription": {
         "description": "Description for the voice channel type option."
     },
-    "guildNavbarLinkChannel": "Link channel",
+    "guildNavbarLinkChannel": "Link",
     "@guildNavbarLinkChannel": {
         "description": "Label for the link channel type option."
     },
-    "guildNavbarLinkChannelDescription": "Quick access to an external website or resource",
+    "guildNavbarLinkChannelDescription": "Shortcut to an external website",
     "@guildNavbarLinkChannelDescription": {
         "description": "Description for the link channel type option."
     },
@@ -10631,7 +10631,7 @@
     "@pushRelayConsentNoticePrefix": {
         "description": "Text before the push relay privacy notice link in the consent sheet."
     },
-    "pushRelayConsentNoticeLink": "Push Relay Privacy Notice",
+    "pushRelayConsentNoticeLink": "Push relay privacy notice",
     "@pushRelayConsentNoticeLink": {
         "description": "Link text for the supplemental push relay privacy notice."
     },
@@ -15855,6 +15855,14 @@
             }
         }
     },
+    "premiumGiftGraceEnded": "Your gift time has ended. Subscribe to keep Plutonium.",
+    "@premiumGiftGraceEnded": {
+        "description": "Plutonium settings summary line shown during the grace period after gifted Plutonium time runs out."
+    },
+    "premiumGiftTimeAddedAfterSubscription": "You'll be charged now. Your remaining gift time is added after your paid period, so none of it is lost.",
+    "@premiumGiftTimeAddedAfterSubscription": {
+        "description": "Note next to the subscription plans when the user still has gifted Plutonium time left."
+    },
     "premiumComparisonFeatureColumn": "Feature",
     "premiumDisclaimerPurchased": "By purchasing, you agreed to our {terms} and {privacy}.",
     "@premiumDisclaimerPurchased": {
@@ -15872,7 +15880,6 @@
     "premiumPrivacyPolicy": "Privacy policy",
     "premiumCheckoutStartFailedTitle": "Couldn't start checkout",
     "premiumCheckoutStartFailedBody": "Something went wrong while starting checkout. Please try again in a moment.",
-    "premiumGiftSubscriptionBlocksRecurring": "You're currently on a gift subscription. It won't renew. You can redeem more gift codes to extend it. Recurring subscriptions can be started after your gift time ends.",
     "premiumPlanUnavailable": "This plan isn't available. Contact support.",
     "premiumCompletePaymentTitle": "Complete payment",
     "premiumCompletePaymentBody": "You are now navigating to Stripe to complete the payment. Return to Fluxer once you've completed it.",
