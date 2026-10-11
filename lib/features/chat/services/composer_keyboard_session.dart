@@ -20,7 +20,6 @@ enum ComposerKeyboardState {
   transitioningToPanel,
   transitioningToKeyboard,
   restoringAfterResume,
-  imeReconnecting,
 }
 
 typedef ComposerKeyboardMounted = bool Function();
@@ -45,7 +44,7 @@ class ComposerKeyboardSession {
   }
 
   final WidgetRef _ref;
-  final FocusNode _focusNode;
+  FocusNode _focusNode;
   final ComposerKeyboardMounted _isMounted;
   final ComposerKeyboardMobileLayout _isMobileLayout;
   final ComposerKeyboardSlashActive _isSlashSessionActive;
@@ -54,9 +53,17 @@ class ComposerKeyboardSession {
   late final KeyboardFocusRestoreHandle _keyboardRestore;
 
   ComposerKeyboardState _keyboardState = ComposerKeyboardState.idle;
+  int _layoutResetGeneration = 0;
 
   ComposerKeyboardState get keyboardState => _keyboardState;
   bool get hasPendingRestore => _keyboardRestore.hasPendingRestore;
+
+  FocusNode get focusNode => _focusNode;
+
+  set focusNode(FocusNode focusNode) {
+    _focusNode = focusNode;
+    _keyboardRestore.focusNode = focusNode;
+  }
 
   void dispose() {
     _keyboardRestore.dispose();
@@ -64,15 +71,13 @@ class ComposerKeyboardSession {
   }
 
   void onChannelChanged() {
-    cancelImeReconnect();
+    cancelPendingFocusRestore();
     _scheduleResetLayoutProviders();
-    _endImeReconnectStateIfNeeded();
   }
 
   void onComposerDeactivated() {
-    cancelImeReconnect();
+    cancelPendingFocusRestore();
     _scheduleResetLayoutProviders();
-    _endImeReconnectStateIfNeeded();
   }
 
   void onComposerActivated(BuildContext context) {
@@ -88,8 +93,9 @@ class ComposerKeyboardSession {
   }
 
   void _scheduleResetLayoutProviders() {
+    final int generation = ++_layoutResetGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isMounted()) {
+      if (!_isMounted() || generation != _layoutResetGeneration) {
         return;
       }
       _resetLayoutProviders();
@@ -97,17 +103,17 @@ class ComposerKeyboardSession {
   }
 
   void _resetLayoutProviders() {
+    final bool preserveFocusedKeyboard =
+        _focusNode.hasFocus &&
+        isImeKeyboardHeight(
+          _ref.read(mobileKeyboardMetricsProvider).liveKeyboardHeight,
+        );
     _ref
         .read(mobileKeyboardMetricsProvider.notifier)
-        .resetTransientLayoutState();
+        .resetTransientLayoutState(
+          preserveFocusedKeyboard: preserveFocusedKeyboard,
+        );
     _ref.read(bottomInputSlotProvider.notifier).resetAfterChannelChange();
-  }
-
-  void _endImeReconnectStateIfNeeded() {
-    if (_keyboardState == ComposerKeyboardState.imeReconnecting) {
-      _keyboardState = _resolveIdleKeyboardState();
-      _recordDebugBreadcrumb();
-    }
   }
 
   void resyncViewInsetsFromContext(BuildContext context) {
@@ -149,12 +155,16 @@ class ComposerKeyboardSession {
   void handleFocusChange({required bool focused}) {
     if (focused) {
       maybeReserveUnmeasuredKeyboard();
-      if (_keyboardState == ComposerKeyboardState.imeReconnecting) {
-        _keyboardState = ComposerKeyboardState.keyboardOpen;
-      }
     } else {
-      cancelImeReconnect();
-      if (_isMounted()) {
+      cancelPendingFocusRestore();
+      if (_isMounted() &&
+          !isComposerPanelOpen(
+            expressionPanelOpen: _ref.read(expressionPanelProvider),
+            attachmentPanelOpen: _ref.read(attachmentPanelProvider),
+          )) {
+        _ref
+            .read(mobileKeyboardMetricsProvider.notifier)
+            .onComposerEntryFocusLost();
         _ref
             .read(mobileKeyboardMetricsProvider.notifier)
             .clearUnmeasuredKeyboardReservation();
@@ -172,37 +182,9 @@ class ComposerKeyboardSession {
       closePanelsAndFocusComposer();
       return;
     }
-    if (_focusNode.hasFocus && resolvedKeyboardInsetBottom(context) <= 0) {
-      if (_keyboardMetricsIndicateOpen()) {
-        nudgeComposerKeyboardOpen(_focusNode);
-        return;
-      }
-      _beginImeReconnect();
-      _keyboardRestore.reconnectOpenField();
+    if (!_focusNode.hasFocus && _focusNode.canRequestFocus) {
+      _focusNode.requestFocus();
     }
-  }
-
-  void onKeyboardMetricsChanged() {
-    if (!_isMounted() || !_focusNode.hasFocus) {
-      return;
-    }
-    final MobileKeyboardMetricsState metrics = _ref.read(
-      mobileKeyboardMetricsProvider,
-    );
-    if (metrics.liveKeyboardHeight <= 0 &&
-        !metrics.unmeasuredKeyboardReserved &&
-        !metrics.isKeyboardVisible) {
-      maybeReserveUnmeasuredKeyboard();
-    }
-  }
-
-  bool _keyboardMetricsIndicateOpen() {
-    final MobileKeyboardMetricsState metrics = _ref.read(
-      mobileKeyboardMetricsProvider,
-    );
-    return metrics.isKeyboardVisible ||
-        metrics.unmeasuredKeyboardReserved ||
-        metrics.liveKeyboardHeight > 0;
   }
 
   void closePanelsAndFocusComposer() {
@@ -220,12 +202,12 @@ class ComposerKeyboardSession {
       if (!_isMounted()) {
         return;
       }
-      if (_focusNode.canRequestFocus) {
+      if (_focusNode.canRequestFocus && !_focusNode.hasFocus) {
         _focusNode.requestFocus();
       }
       if (_focusNode.hasFocus) {
-        _beginImeReconnect();
-        _keyboardRestore.reconnectOpenField();
+        _keyboardState = ComposerKeyboardState.keyboardOpen;
+        _recordDebugBreadcrumb();
       } else {
         _keyboardRestore.scheduleRestoreIfPending();
         _keyboardState = _resolveIdleKeyboardState();
@@ -296,40 +278,8 @@ class ComposerKeyboardSession {
         .reserveUnmeasuredKeyboard();
   }
 
-  void cancelImeReconnect() {
-    _keyboardRestore.cancelImeReconnect();
-    if (_keyboardState == ComposerKeyboardState.imeReconnecting) {
-      _keyboardState = _resolveIdleKeyboardState();
-      _recordDebugBreadcrumb();
-    }
-  }
-
-  void onComposerLayoutChurn() {
-    if (!_isMounted() || !_focusNode.hasFocus) {
-      return;
-    }
-    maybeReserveUnmeasuredKeyboard();
-  }
-
-  void reconnectOpenField() {
-    _beginImeReconnect();
-    _keyboardRestore.reconnectOpenField();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isMounted()) {
-        return;
-      }
-      if (_keyboardState == ComposerKeyboardState.imeReconnecting) {
-        _keyboardState = _focusNode.hasFocus
-            ? ComposerKeyboardState.keyboardOpen
-            : _resolveIdleKeyboardState();
-        _recordDebugBreadcrumb();
-      }
-    });
-  }
-
-  void _beginImeReconnect() {
-    _keyboardState = ComposerKeyboardState.imeReconnecting;
-    _recordDebugBreadcrumb();
+  void cancelPendingFocusRestore() {
+    _keyboardRestore.cancelPendingRestore();
   }
 
   bool _shouldTrackKeyboardRestore() {
@@ -345,10 +295,7 @@ class ComposerKeyboardSession {
     if (!_focusNode.canRequestFocus) {
       return false;
     }
-    if (_focusNode.hasFocus) {
-      return true;
-    }
-    return _ref.read(mobileKeyboardMetricsProvider).isKeyboardVisible;
+    return _focusNode.hasFocus;
   }
 
   bool _canRestoreKeyboardFocus() {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluxer_app/core/database/fluxer_database.dart' as drift_db;
 import 'package:fluxer_app/core/permissions/channel_permission_cache_provider.dart';
@@ -72,7 +73,6 @@ import 'package:fluxer_app/features/chat/providers/core/chat_view_model.dart';
 import 'package:fluxer_app/features/chat/providers/core/message_pagination_coordinator.dart';
 import 'package:fluxer_app/features/chat/providers/messages/channel_spoiler_sync_provider.dart';
 import 'package:fluxer_app/features/chat/providers/messages/spoiler_reveal_provider.dart';
-import 'package:fluxer_app/features/chat/providers/pickers/bottom_input_slot_provider.dart';
 import 'package:fluxer_app/features/chat/utils/messages/channel_message_stream.dart';
 import 'package:fluxer_app/features/chat/utils/messages/message_action_permissions.dart';
 import 'package:fluxer_app/features/chat/utils/messages/message_grouping_utils.dart';
@@ -299,6 +299,7 @@ class _MessageListState extends ConsumerState<MessageList>
   final ValueNotifier<bool> _deferHorizontalWhileCoasting = ValueNotifier<bool>(
     false,
   );
+  bool? _deferHorizontalWhileCoastingAfterFrame;
   final _LiveDouble _openPad = _LiveDouble(0);
   bool _settleDeferredForHold = false;
   Timer? _detachedTrimTimer;
@@ -607,7 +608,7 @@ class _MessageListState extends ConsumerState<MessageList>
           channelId: channelId,
           messages: messages,
         )) {
-      return const MessageListMismatchPlaceholder();
+      return MessageListMismatchPlaceholder(channelId: expectedChannelId);
     }
     final String? stickyUnreadId = ref.watch(
       chatViewModelProvider.select(
@@ -830,13 +831,7 @@ class _MessageListState extends ConsumerState<MessageList>
         }
       });
     }
-    // Rebuild when the view or composer slot changes height.
     MediaQuery.sizeOf(context);
-    ref.watch(
-      bottomInputSlotProvider.select(
-        (BottomInputSlotState slot) => slot.slotHeight,
-      ),
-    );
     final int unreadCount = unreadSummary.displayUnreadCount;
     final bool viewportNearTail = ref.watch(
       chatReadViewportProvider.select(
@@ -1786,6 +1781,10 @@ class _MessageListState extends ConsumerState<MessageList>
     if (_liveTailFollowAnimated && entranceMessageIds.isNotEmpty) {
       _armLiveTailEntrance(entranceMessageIds);
     }
+    final List<Message> messages = ref.read(chatViewModelProvider).messages;
+    if (messages.isNotEmpty) {
+      _tailGlueRowId = messages.last.id;
+    }
     _schedulePinnedTailGlue();
   }
 
@@ -2037,12 +2036,37 @@ class _MessageListState extends ConsumerState<MessageList>
   /// coasting flag cannot be driven from start notifications alone. While the
   /// position is still scrolling, horizontal competitors must drop out so a
   /// catch-fling can keep the hold's velocity.
+  void _setDeferHorizontalWhileCoasting(bool value) {
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      _deferHorizontalWhileCoastingAfterFrame = null;
+      if (_deferHorizontalWhileCoasting.value != value) {
+        _deferHorizontalWhileCoasting.value = value;
+      }
+      return;
+    }
+    final bool schedule = _deferHorizontalWhileCoastingAfterFrame == null;
+    _deferHorizontalWhileCoastingAfterFrame = value;
+    if (!schedule) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final bool? pending = _deferHorizontalWhileCoastingAfterFrame;
+      _deferHorizontalWhileCoastingAfterFrame = null;
+      if (!mounted || pending == null) {
+        return;
+      }
+      if (_deferHorizontalWhileCoasting.value != pending) {
+        _deferHorizontalWhileCoasting.value = pending;
+      }
+    });
+  }
+
   void _syncCoastingDefer() {
     if (!_scrollController.hasClients) {
       return;
     }
     if (_scrollController.position.isScrollingNotifier.value) {
-      _deferHorizontalWhileCoasting.value = true;
+      _setDeferHorizontalWhileCoasting(true);
     }
   }
 
@@ -2135,7 +2159,10 @@ class _MessageListState extends ConsumerState<MessageList>
       if (_liveTailFollowAnimated &&
           _tailFollowOwnsScroll() &&
           position is MessageListScrollPosition) {
-        position.followTailTo(tail);
+        position.followTailTo(
+          tail,
+          resolveTarget: () => _loadedTailExtent(position),
+        );
         return;
       }
       position.jumpTo(tail);
@@ -2147,7 +2174,10 @@ class _MessageListState extends ConsumerState<MessageList>
     if (_liveTailFollowAnimated &&
         _tailFollowOwnsScroll() &&
         position is MessageListScrollPosition) {
-      position.followTailTo(tail);
+      position.followTailTo(
+        tail,
+        resolveTarget: () => _loadedTailExtent(position),
+      );
       return;
     }
     position.jumpTo(tail);
@@ -2319,7 +2349,7 @@ class _MessageListState extends ConsumerState<MessageList>
       _settleDeferredForHold = false;
       _cancelDetachedTrim();
       if (notification.dragDetails == null) {
-        _deferHorizontalWhileCoasting.value = true;
+        _setDeferHorizontalWhileCoasting(true);
       }
       _syncCoastingDefer();
       // Drag, ballistic, or programmatic - each pairs with an End, and the
@@ -2335,7 +2365,7 @@ class _MessageListState extends ConsumerState<MessageList>
       }
     } else if (notification is ScrollUpdateNotification) {
       if (notification.dragDetails == null) {
-        _deferHorizontalWhileCoasting.value = true;
+        _setDeferHorizontalWhileCoasting(true);
       }
       final double? delta = notification.scrollDelta;
       if (delta != null && delta != 0) {
@@ -2403,7 +2433,7 @@ class _MessageListState extends ConsumerState<MessageList>
   /// A depth-0 scroll settled: update the pin latch, apply the re-center
   /// policy, trim the window at the tail, and republish the read viewport.
   void _onUserScrollSettled() {
-    _deferHorizontalWhileCoasting.value = false;
+    _setDeferHorizontalWhileCoasting(false);
     if (!_anchorResolved || !_scrollController.hasClients) {
       _chatViewModel.setUserScrollActive(
         channelId: _viewportChannelId,
@@ -2876,7 +2906,7 @@ class _MessageListState extends ConsumerState<MessageList>
       if (extentGrew || extentShrank) {
         if (_suppressPinnedTailReconcileExtentChanges > 0) {
           _suppressPinnedTailReconcileExtentChanges -= 1;
-        } else if (_tailGlueRowId != null) {
+        } else {
           _reconcilePinnedLiveTailScroll();
         }
       }
@@ -3231,6 +3261,10 @@ class _MessageListState extends ConsumerState<MessageList>
       _pinnedTailGlueIgnorePin = _pinnedTailGlueIgnorePin || ignorePin;
       return;
     }
+    final List<Message> messages = ref.read(chatViewModelProvider).messages;
+    if (messages.isNotEmpty) {
+      _tailGlueRowId = messages.last.id;
+    }
     _pinnedTailGlueScheduled = true;
     _pinnedTailGlueIgnorePin = ignorePin;
     final int glueEpoch = _uiEpoch;
@@ -3286,6 +3320,7 @@ class _MessageListState extends ConsumerState<MessageList>
     }
     tailPosition.followTailTo(
       tail,
+      resolveTarget: () => _loadedTailExtent(position),
       onComplete: () {
         if (mounted) {
           _finishTailGlueSideEffects();
