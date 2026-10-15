@@ -9,7 +9,7 @@ import 'package:fluxer_app/features/settings/presentation/sheets/connection_remo
 import 'package:fluxer_app/features/settings/presentation/widgets/wide_settings_content_layout.dart';
 import 'package:fluxer_app/features/settings/providers/connections_view_model.dart';
 import 'package:fluxer_app/features/ui/button/fluxer_button.dart';
-import 'package:fluxer_app/features/ui/icons/fluxer_bluesky_icon.dart';
+import 'package:fluxer_app/features/ui/icons/fluxer_connection_icon.dart';
 import 'package:fluxer_app/features/ui/icons/fluxer_unverified_connection_icon.dart';
 import 'package:fluxer_app/features/ui/icons/fluxer_verified_badge_icon.dart';
 import 'package:fluxer_app/features/ui/settings/fluxer_settings_section.dart';
@@ -105,7 +105,10 @@ class _AddConnectionRow extends ConsumerWidget {
           _AddTile(
             tooltip: l10n.connectionsAddBluesky,
             semanticLabel: l10n.connectionsAddBlueskyAriaLabel,
-            icon: const FluxerBlueskyIcon(size: 28),
+            icon: const FluxerConnectionIcon(
+              type: ConnectionType.bluesky,
+              size: 28,
+            ),
             onTap: () => ConnectionAddSheet.showForBluesky(context, ref),
           ),
           SizedBox(width: layout.s3),
@@ -113,10 +116,9 @@ class _AddConnectionRow extends ConsumerWidget {
         _AddTile(
           tooltip: l10n.connectionsAddDomain,
           semanticLabel: l10n.connectionsAddDomainAriaLabel,
-          icon: const PhosphorIcon(
-            PhosphorIconsBold.globeSimple,
+          icon: const FluxerConnectionIcon(
+            type: ConnectionType.domain,
             size: 28,
-            color: Colors.black,
           ),
           onTap: () => ConnectionAddSheet.showForDomain(context, ref),
         ),
@@ -173,14 +175,14 @@ class _Body extends ConsumerWidget {
 
     if (state.isLoading && state.connections.isEmpty) {
       return Padding(
-        padding: EdgeInsets.all(layout.s6),
+        padding: EdgeInsets.symmetric(vertical: layout.s6),
         child: const Center(child: FluxerLoadingSpinner()),
       );
     }
 
     if (state.error != null && state.connections.isEmpty) {
       return Padding(
-        padding: EdgeInsets.all(layout.s4),
+        padding: EdgeInsets.symmetric(vertical: layout.s4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -210,7 +212,7 @@ class _Body extends ConsumerWidget {
 
     if (state.connections.isEmpty) {
       return Padding(
-        padding: EdgeInsets.all(layout.s6),
+        padding: EdgeInsets.symmetric(vertical: layout.s6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -311,14 +313,6 @@ class _ConnectionCard extends ConsumerWidget {
         .pendingIds
         .contains(connection.id);
 
-    final platformIcon = connection.type == ConnectionType.bluesky
-        ? const FluxerBlueskyIcon()
-        : const PhosphorIcon(
-            PhosphorIconsBold.globeSimple,
-            size: 20,
-            color: Colors.black,
-          );
-
     return Container(
       constraints: const BoxConstraints(minHeight: 80),
       decoration: BoxDecoration(
@@ -341,13 +335,9 @@ class _ConnectionCard extends ConsumerWidget {
             ),
           ),
           SizedBox(width: layout.s1_5),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: layout.radiusMd,
-            ),
-            child: platformIcon,
+          FluxerConnectionIconTile(
+            type: connection.type,
+            borderRadius: layout.radiusMd,
           ),
           SizedBox(width: layout.s1_5),
           Expanded(

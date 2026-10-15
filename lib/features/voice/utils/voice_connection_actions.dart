@@ -11,8 +11,6 @@ import 'package:fluxer_app/features/channels/domain/channel.dart';
 import 'package:fluxer_app/features/mature_content/utils/channel_gate_navigator.dart';
 import 'package:fluxer_app/features/settings/providers/advanced_preferences_provider.dart';
 import 'package:fluxer_app/features/settings/providers/voice_settings_provider.dart';
-import 'package:fluxer_app/features/ui/button/fluxer_button.dart';
-import 'package:fluxer_app/features/ui/modal/fluxer_modal.dart';
 import 'package:fluxer_app/features/ui/settings/fluxer_settings_confirm_sheet.dart';
 import 'package:fluxer_app/features/voice/presentation/sheets/voice_p2p_sheets.dart';
 import 'package:fluxer_app/features/voice/presentation/widgets/voice_connection_confirm_modal.dart';
@@ -22,9 +20,11 @@ import 'package:fluxer_app/features/voice/providers/voice_session_provider.dart'
 import 'package:fluxer_app/features/voice/providers/voice_session_state.dart';
 import 'package:fluxer_app/features/voice/utils/channel_e2ee_status.dart';
 import 'package:fluxer_app/features/voice/utils/voice_p2p_mode.dart';
+import 'package:fluxer_app/features/voice/utils/voice_session_navigation.dart';
 import 'package:fluxer_app/features/voice/voice_session_errors.dart';
 import 'package:fluxer_app/l10n/generated/fluxer_localizations.dart';
 import 'package:fluxer_app/material_ui.dart';
+import 'package:fluxer_app/shared/utils/api_error_presentation.dart';
 import 'package:fluxer_dart/gateway.dart';
 
 const Duration _kOtherDeviceDisconnectTimeout = Duration(seconds: 3);
@@ -87,17 +87,10 @@ Future<void> _showVoiceJoinFailedModal(
   if (modalContext == null) {
     return;
   }
-  final FluxerLocalizations l10n = FluxerLocalizations.of(modalContext);
-  await FluxerModal.show<void>(
+  await showErrorDialog(
     modalContext,
-    title: l10n.voiceJoinFailedTitle,
-    description: message,
-    builder: (BuildContext dialogContext, VoidCallback close) {
-      return const SizedBox.shrink();
-    },
-    actionsBuilder: (void Function([void result]) pop) => <Widget>[
-      FluxerButton.primary(onPressed: pop, label: l10n.uiClose),
-    ],
+    title: FluxerLocalizations.of(modalContext).voiceJoinFailedTitle,
+    body: message,
   );
 }
 
@@ -326,6 +319,7 @@ Future<VoiceJoinResult> joinVoiceChannelWithConfirmation({
         guildId: guildId,
         channelId: channelId,
         currentUserId: currentUserId,
+        gatewaySessionId: container.read(gatewayConnectionProvider).sessionId,
         session: session,
       );
   if (partitioned.stale.isNotEmpty) {
@@ -462,6 +456,11 @@ Future<VoiceJoinResult> _connectAndResolveJoinResult({
         p2p: p2p,
       );
   if (joined) {
+    openHandheldImmersiveVoiceCallAfterJoin(
+      container,
+      guildId: guildId,
+      channelId: channelId,
+    );
     return VoiceJoinResult.succeeded;
   }
   if (await isChannelGateBlocking(

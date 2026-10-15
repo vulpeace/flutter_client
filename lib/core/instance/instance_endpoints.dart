@@ -17,6 +17,7 @@ abstract final class InstanceEndpoints {
   static String webApp = defaultWebApp;
   static String api = '';
   static String gateway = '';
+  static bool selfHosted = false;
 
   static void apply(WellKnownFluxerResponse response) {
     final InstanceEndpointsSchema endpoints = response.endpoints;
@@ -24,7 +25,7 @@ abstract final class InstanceEndpoints {
       endpoints.staticCdn,
       fallback: defaultStaticCdn,
     );
-    media = _normalizeBaseUrl(endpoints.media, fallback: defaultMedia);
+    media = mediaOf(response);
     invite = _normalizeBaseUrl(endpoints.invite, fallback: defaultInvite);
     gift = _normalizeBaseUrl(endpoints.gift, fallback: defaultGift);
     webApp = _normalizeBaseUrl(endpoints.webapp, fallback: defaultWebApp);
@@ -33,6 +34,14 @@ abstract final class InstanceEndpoints {
         : endpoints.api;
     api = resolvedApi.isNotEmpty ? _normalizeBaseUrl(resolvedApi) : api;
     gateway = endpoints.gateway.isNotEmpty ? endpoints.gateway : gateway;
+    selfHosted = response.features.selfHosted;
+  }
+
+  static String mediaOf(WellKnownFluxerResponse? response) {
+    return _normalizeBaseUrl(
+      response?.endpoints.media ?? '',
+      fallback: defaultMedia,
+    );
   }
 
   static String _normalizeBaseUrl(String value, {String? fallback}) {
@@ -51,5 +60,6 @@ abstract final class InstanceEndpoints {
     webApp = defaultWebApp;
     api = '';
     gateway = '';
+    selfHosted = false;
   }
 }

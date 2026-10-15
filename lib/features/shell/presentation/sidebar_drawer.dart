@@ -11,14 +11,15 @@ import 'package:fluxer_app/features/shell/providers/drawer_past_half_screen_prov
 import 'package:fluxer_app/features/shell/providers/drawer_reveal_sync_trigger_provider.dart';
 import 'package:fluxer_app/features/shell/providers/reveal_side_provider.dart';
 import 'package:fluxer_app/features/shell/providers/shell_blocks_horizontal_gestures_provider.dart';
+import 'package:fluxer_app/features/voice/providers/voice_pip_providers.dart';
 import 'package:fluxer_app/material_ui.dart';
 import 'package:fluxer_app/shared/gestures/horizontal_reveal_physics.dart';
 import 'package:fluxer_app/shared/gestures/nested_horizontal_scrollable.dart';
 
-/// Compact wide mobile peeks the drawer at the channel list edge.
 class SidebarDrawer extends ConsumerStatefulWidget {
   final Widget base;
   final Widget slider;
+  final String? shellLocation;
 
   final Duration? revealDuration;
   final Curve revealCurve;
@@ -28,6 +29,7 @@ class SidebarDrawer extends ConsumerStatefulWidget {
   const SidebarDrawer({
     required this.base,
     required this.slider,
+    this.shellLocation,
     this.revealDuration,
     this.revealCurve = kHorizontalSwipeCurve,
     this.snapBackDuration,
@@ -59,7 +61,18 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
   @override
   void initState() {
     super.initState();
-    _currentSide = ref.read(currentRevealSideProvider);
+    final String? location = widget.shellLocation;
+    final RevealSide? routeSide = location == null
+        ? null
+        : syncedRevealSideFor(location);
+    _currentSide = routeSide ?? ref.read(currentRevealSideProvider);
+    if (routeSide != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(currentRevealSideProvider.notifier).set(routeSide);
+        }
+      });
+    }
     _animationController = createHorizontalRevealController(vsync: this)
       ..addListener(_schedulePublishPastHalf)
       ..addListener(_syncPaneTickers)
@@ -69,8 +82,19 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncWidth(MediaQuery.sizeOf(context).width);
+    _syncWidth(_layoutWidth());
     _syncPaneTickers();
+  }
+
+  double _layoutWidth() {
+    if (!mounted) {
+      return _lastWidth;
+    }
+    final double? queryWidth = MediaQuery.maybeOf(context)?.size.width;
+    if (queryWidth != null && queryWidth > 0) {
+      return queryWidth;
+    }
+    return _lastWidth;
   }
 
   void _syncWidth(double width) {
@@ -145,7 +169,15 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
     return isSidebarDrawerLockedForLocation(ref.read(shellLocationProvider));
   }
 
+  bool _handheldVoiceImmersive() {
+    return isHandheldVoiceOverlay(context) &&
+        ref.read(handheldVoiceImmersiveProvider);
+  }
+
   bool _usesPeekReveal() {
+    if (_handheldVoiceImmersive()) {
+      return false;
+    }
     return isCompactWideMobileLayout(context) && !_isSidebarDrawerLocked();
   }
 
@@ -173,7 +205,14 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
     if (!mounted) {
       return;
     }
-    final width = MediaQuery.sizeOf(context).width;
+    final width = _layoutWidth();
+    if (width <= 0) {
+      _currentSide = side;
+      if (writeBack) {
+        ref.read(currentRevealSideProvider.notifier).set(side);
+      }
+      return;
+    }
     _syncWidth(width);
     final goal = _goalForSide(side, width);
     final isReveal = side == RevealSide.left;
@@ -196,7 +235,7 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
     if (!mounted) {
       return;
     }
-    final width = MediaQuery.sizeOf(context).width;
+    final width = _layoutWidth();
     if (width <= 0) {
       return;
     }
@@ -215,7 +254,7 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
     if (!mounted) {
       return;
     }
-    final width = MediaQuery.sizeOf(context).width;
+    final width = _layoutWidth();
     if (width <= 0) {
       return;
     }
@@ -236,7 +275,7 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
   }
 
   double _peekOverlayT() {
-    final double width = MediaQuery.sizeOf(context).width;
+    final double width = _layoutWidth();
     final double maxReveal = _maxRevealTranslate(width);
     if (maxReveal <= 0) {
       return 0;
@@ -249,7 +288,7 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
       return;
     }
     final RevealSide side = ref.read(currentRevealSideProvider);
-    final double width = MediaQuery.sizeOf(context).width;
+    final double width = _layoutWidth();
     if (width <= 0) {
       return;
     }
@@ -264,6 +303,24 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
       _snapBackDuration(context),
       widget.snapBackCurve,
     );
+  }
+
+  void _scheduleMoveToState(RevealSide side, {required bool writeBack}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_moveToState(side, writeBack: writeBack));
+    });
+  }
+
+  void _scheduleSyncTranslateToRevealSide({required bool writeBack}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_syncTranslateToRevealSide(writeBack: writeBack));
+    });
   }
 
   bool _shouldDeferDrawerGesture(PointerDownEvent event) {
@@ -285,12 +342,12 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
         RevealSide next,
       ) {
         if (next != _currentSide) {
-          unawaited(_moveToState(next, writeBack: false));
+          _scheduleMoveToState(next, writeBack: false);
         }
       })
       ..listen<String>(shellLocationProvider, (String? prev, String next) {
         if (_currentSide == RevealSide.left) {
-          unawaited(_syncTranslateToRevealSide(writeBack: false));
+          _scheduleSyncTranslateToRevealSide(writeBack: false);
         }
       })
       ..listen<bool>(shellBlocksHorizontalGesturesProvider, (
@@ -302,14 +359,19 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
           return;
         }
         if (prev ?? false) {
-          unawaited(_syncTranslateToRevealSide(writeBack: false));
+          _scheduleSyncTranslateToRevealSide(writeBack: false);
         }
       })
       ..listen<int>(drawerRevealSyncTriggerProvider, (int? prev, int next) {
         if (ref.read(shellBlocksHorizontalGesturesProvider)) {
           return;
         }
-        unawaited(_syncTranslateToRevealSide(writeBack: false));
+        _scheduleSyncTranslateToRevealSide(writeBack: false);
+      })
+      ..listen<bool>(handheldVoiceImmersiveProvider, (bool? prev, bool next) {
+        if (next && _handheldVoiceImmersive()) {
+          _scheduleMoveToState(RevealSide.main, writeBack: true);
+        }
       });
     final Map<Type, GestureRecognizerFactory> drawerGestures =
         blocksHorizontalGestures
@@ -353,7 +415,10 @@ class _SidebarDrawerState extends ConsumerState<SidebarDrawer>
               excluding: !peek && revealSide == RevealSide.left,
               child: ValueListenableBuilder<bool>(
                 valueListenable: _sliderTickersEnabled,
-                child: _DrawerSliderLayer(slider: widget.slider),
+                child: SidebarDrawerSliderScope(
+                  translate: _animationController,
+                  child: _DrawerSliderLayer(slider: widget.slider),
+                ),
                 builder: (BuildContext context, bool enabled, Widget? slider) =>
                     TickerMode(enabled: enabled, child: slider!),
               ),
@@ -407,18 +472,47 @@ class _DrawerSliderLayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final RevealSide revealSide = ref.watch(currentRevealSideProvider);
     final bool peek = isCompactWideDrawerPeekMode(
       context,
       shellLocation: ref.watch(shellLocationProvider),
-      revealSide: ref.watch(currentRevealSideProvider),
+      revealSide: revealSide,
     );
-    return ChatSwipeToReplyScope(
-      enabled: !peek,
-      child: IgnorePointer(
-        ignoring: peek,
-        child: RepaintBoundary(child: slider),
+    return ChatOnScreenScope(
+      onScreen: peek || revealSide == RevealSide.main,
+      child: ChatSwipeToReplyScope(
+        enabled: !peek,
+        child: IgnorePointer(
+          ignoring: peek,
+          child: RepaintBoundary(child: slider),
+        ),
       ),
     );
+  }
+}
+
+class SidebarDrawerSliderScope extends InheritedWidget {
+  const SidebarDrawerSliderScope({
+    required this.translate,
+    required super.child,
+    super.key,
+  });
+
+  final AnimationController translate;
+
+  static bool isPresentingOf(BuildContext context) {
+    final AnimationController? translate = context
+        .getInheritedWidgetOfExactType<SidebarDrawerSliderScope>()
+        ?.translate;
+    if (translate == null) {
+      return false;
+    }
+    return translate.value != 0 || translate.isAnimating;
+  }
+
+  @override
+  bool updateShouldNotify(SidebarDrawerSliderScope oldWidget) {
+    return translate != oldWidget.translate;
   }
 }
 
@@ -436,7 +530,6 @@ const Key kDrawerPeekInactiveScrimKey = ValueKey<String>('drawer-peek-scrim');
 
 const double kDrawerPeekInactiveScrimOpacity = 0.4;
 
-/// False in compact-wide peek.
 class ChatSwipeToReplyScope extends InheritedWidget {
   const ChatSwipeToReplyScope({
     required this.enabled,
@@ -456,6 +549,28 @@ class ChatSwipeToReplyScope extends InheritedWidget {
   @override
   bool updateShouldNotify(ChatSwipeToReplyScope oldWidget) {
     return enabled != oldWidget.enabled;
+  }
+}
+
+class ChatOnScreenScope extends InheritedWidget {
+  const ChatOnScreenScope({
+    required this.onScreen,
+    required super.child,
+    super.key,
+  });
+
+  final bool onScreen;
+
+  static bool onScreenOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<ChatOnScreenScope>()
+            ?.onScreen ??
+        true;
+  }
+
+  @override
+  bool updateShouldNotify(ChatOnScreenScope oldWidget) {
+    return onScreen != oldWidget.onScreen;
   }
 }
 
@@ -498,7 +613,6 @@ RevealSide sidebarDrawerTargetForDrag({
   return open ? RevealSide.left : RevealSide.main;
 }
 
-/// True once the chat slider has moved past half the viewport.
 bool drawerTranslatePastHalfScreen({
   required double translate,
   required double screenWidth,

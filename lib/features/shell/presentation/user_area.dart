@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluxer_app/core/gateway/providers/gateway_event_providers.dart';
-import 'package:fluxer_app/core/providers/instance_runtime_config_provider.dart';
 import 'package:fluxer_app/core/theme/fluxer_theme_extension.dart';
 import 'package:fluxer_app/features/settings/providers/user_settings_view_model.dart';
 import 'package:fluxer_app/features/shell/presentation/responsive_layout.dart';
@@ -80,7 +79,8 @@ class UserArea extends ConsumerWidget {
                       child: InkWell(
                         borderRadius: layout.radiusMd,
                         hoverColor: colors.textPrimary.withValues(alpha: 0.03),
-                        onTap: () => unawaited(UserAreaPopout.show(context)),
+                        onTap: () =>
+                            unawaited(UserAreaPopout.show(context, ref)),
                         child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: layout.s2),
                           child: ConstrainedBox(
@@ -114,9 +114,7 @@ class UserArea extends ConsumerWidget {
                                         formatUserTag(
                                           user.username,
                                           user.discriminator,
-                                          uniqueUsernames: ref.watch(
-                                            uniqueUsernamesProvider,
-                                          ),
+                                          uniqueUsernames: true,
                                         ),
                                         style: context.textStyles.timestamp
                                             .copyWith(

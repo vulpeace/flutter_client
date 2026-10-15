@@ -1,4 +1,5 @@
 import 'package:fluxer_app/features/chat/domain/message.dart';
+import 'package:fluxer_app/features/chat/utils/messages/message_grouping_utils.dart';
 
 enum ChannelStreamType {
   message,
@@ -97,7 +98,7 @@ List<MessageCollapseAssignment> buildMessageCollapseAssignments({
     }
     if (collapsedType != currentType ||
         (previousTimestamp != null &&
-            !_isSameDay(previousTimestamp, message.timestamp))) {
+            !isSameLocalDay(previousTimestamp, message.timestamp))) {
       currentType = collapsedType;
       currentGroupKey = message.id;
     }
@@ -127,12 +128,9 @@ String? getCollapsedMessageGroupKey({
   return null;
 }
 
-/// Tile key of the date divider placed before [nextMessageId], stable across
-/// page landings and trims.
 String channelStreamDividerKey(String nextMessageId) =>
     'divider-$nextMessageId';
 
-/// O(1) lookups into one built stream, recorded while it is built.
 class ChannelStreamIndex {
   ChannelStreamIndex._(this.messages);
 
@@ -140,25 +138,22 @@ class ChannelStreamIndex {
     const <Message>[],
   );
 
-  /// The window the stream was built from.
   final List<Message> messages;
   final Map<String, int> _itemByMessageId = <String, int>{};
   final Map<String, int> _itemByGroupKey = <String, int>{};
   final Map<String, int> _itemByDividerKey = <String, int>{};
   final Map<String, int> _windowIndexByMessageId = <String, int>{};
+  final Map<String, String> _groupByMessageId = <String, String>{};
 
-  /// Stream data index of the item holding [messageId], collapsed groups
-  /// included.
   int? itemOfMessage(String messageId) => _itemByMessageId[messageId];
 
   int? itemOfGroup(String groupKey) => _itemByGroupKey[groupKey];
 
-  /// Stream data index of the divider keyed [dividerKey]
-  /// ([channelStreamDividerKey]).
   int? itemOfDivider(String dividerKey) => _itemByDividerKey[dividerKey];
 
-  /// Index of [messageId] in [messages].
   int? windowIndexOf(String messageId) => _windowIndexByMessageId[messageId];
+
+  String? groupOfMessage(String messageId) => _groupByMessageId[messageId];
 }
 
 List<ChannelStreamItem> createChannelStream({
@@ -175,7 +170,6 @@ List<ChannelStreamItem> createChannelStream({
   ).items;
 }
 
-/// [createChannelStream] plus a [ChannelStreamIndex] filled in the same pass.
 ({List<ChannelStreamItem> items, ChannelStreamIndex index})
 createIndexedChannelStream({
   required List<Message> messages,
@@ -202,7 +196,7 @@ createIndexedChannelStream({
     final Message message = messages[i];
     final MessageCollapseAssignment assignment = assignments[i];
     if (lastDateDividerTimestamp == null ||
-        !_isSameDay(lastDateDividerTimestamp, message.timestamp)) {
+        !isSameLocalDay(lastDateDividerTimestamp, message.timestamp)) {
       activeCollapsedGroupKey = null;
       activeCollapsedItem = null;
       stream.add(
@@ -223,11 +217,6 @@ createIndexedChannelStream({
     if (collapsedType != null && groupKey != null) {
       final bool sameGroup =
           activeCollapsedItem != null && activeCollapsedGroupKey == groupKey;
-      // A collapsed group must never absorb content ACROSS the split
-      // boundary (the viewport anchor): the anchor's containing item sits
-      // leading-of-center, so growth inside it would shift everything above.
-      // Content newer than the boundary starts a NEW stream item, which
-      // lands trailing-of-center and is structurally scroll-stable.
       final bool splitAtBoundary =
           sameGroup &&
           groupSplitBoundaryId != null &&
@@ -246,8 +235,6 @@ createIndexedChannelStream({
         activeCollapsedItem = ChannelStreamItem(
           type: collapsedType,
           messages: <Message>[message],
-          // The post-boundary item needs its own identity or two stream
-          // items would collide on 'group-<key>'.
           groupKey: splitAtBoundary ? message.id : groupKey,
         );
         stream.add(activeCollapsedItem);
@@ -268,6 +255,10 @@ createIndexedChannelStream({
     }
     index._itemByMessageId.putIfAbsent(message.id, () => stream.length - 1);
     index._windowIndexByMessageId.putIfAbsent(message.id, () => i);
+    final String? targetGroupKey = targetItem.groupKey;
+    if (targetGroupKey != null) {
+      index._groupByMessageId[message.id] = targetGroupKey;
+    }
 
     if (unreadBoundaryPending && oldestUnreadMessageId == message.id) {
       final ChannelStreamItem? previousItem = stream.length > 1
@@ -369,16 +360,5 @@ bool isMessageInRevealedCollapsedGroup({
     messageId: messageId,
     context: context,
   );
-  if (groupKey == null) {
-    return true;
-  }
-  return revealedCollapsedGroupKey == groupKey;
-}
-
-bool _isSameDay(DateTime a, DateTime b) {
-  final DateTime localA = a.toLocal();
-  final DateTime localB = b.toLocal();
-  return localA.year == localB.year &&
-      localA.month == localB.month &&
-      localA.day == localB.day;
+  return groupKey != null && revealedCollapsedGroupKey == groupKey;
 }
