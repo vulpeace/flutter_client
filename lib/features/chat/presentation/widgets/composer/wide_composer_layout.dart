@@ -6,6 +6,7 @@ abstract final class WideComposerLayout {
   const WideComposerLayout._();
   static const double boxInset = 6;
   static const double boxRadius = 8;
+  static const double ringWidth = 1;
   static const double boxMinHeight = 58;
   static const double densePaddingY = 10;
   static const double denseColumnGap = 12;
@@ -22,8 +23,14 @@ abstract final class WideComposerLayout {
   static const double typingMaxWidth = 384;
   static const double slowmodeMaxWidth = 224;
   static const double actionRowMinHeight = 36;
+  static const double statusFadeHeight = statusSafeArea;
+  static const double statusFadeOpacity = 0.7;
+  static const double statusOverlayHeight = 80;
   static const double messageListTrailingInset = fadeHeight;
-  static const double mobileMessageListTrailingInset = mobileFadeHeight;
+  static const double statusRowHeight = 24;
+  static const double mobileComposerTopInset = 4;
+  static const double mobileMessageListTrailingInset =
+      statusRowHeight - mobileComposerTopInset;
   static const Duration ringTransition = Duration(milliseconds: 150);
 
   static double fadeHeightFor({required bool isMobile}) =>
@@ -35,7 +42,7 @@ abstract final class WideComposerLayout {
 
 Color composerStatusSurfaceColor(BuildContext context) {
   return isMobileLayout(context)
-      ? context.colors.chatInputBackground
+      ? context.colors.chatBackground
       : context.colors.backgroundSecondaryLighter;
 }
 
@@ -67,11 +74,10 @@ class WideComposerFade extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: <Color>[
               surfaceColor.withValues(alpha: 0),
-              surfaceColor.withValues(alpha: 0.42),
-              surfaceColor.withValues(alpha: 0.82),
-              surfaceColor,
+              surfaceColor.withValues(
+                alpha: surfaceColor.a * WideComposerLayout.statusFadeOpacity,
+              ),
             ],
-            stops: const <double>[0, 0.34, 0.66, 1],
           ),
         ),
         child: const SizedBox.expand(),

@@ -158,7 +158,7 @@ class _VoiceChannelPageViewState extends ConsumerState<VoiceChannelPageView> {
         (VoiceSessionState s) => s.isInVoice && s.channelId == widget.channelId,
       ),
     );
-    final bool usePhoneVoiceOverlay = isPhoneVoiceOverlay(context);
+    final bool usePhoneVoiceOverlay = isHandheldVoiceOverlay(context);
     final bool useDesktopChat = isDesktopLayout(context);
     final bool textChatSupported =
         ref
@@ -291,7 +291,6 @@ class _VoiceChannelPageViewState extends ConsumerState<VoiceChannelPageView> {
   }
 }
 
-/// Desktop only button that toggles the docked voice text-chat panel.
 class _DesktopVoiceChatToggle extends StatelessWidget {
   const _DesktopVoiceChatToggle({
     required this.channelId,

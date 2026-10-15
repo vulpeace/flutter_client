@@ -10,7 +10,6 @@ import 'package:fluxer_app/core/synced_preferences/engine/synced_preferences_sto
 import 'package:fluxer_app/core/talker.dart';
 import 'package:fluxer_app/core/theme/custom_theme_css.dart';
 import 'package:fluxer_app/core/theme/fluxer_color_theme.dart';
-import 'package:fluxer_app/core/theme/fluxer_layout_theme.dart';
 import 'package:fluxer_app/core/theme/fluxer_text_theme.dart';
 import 'package:fluxer_app/core/theme/fluxer_theme_mode.dart';
 import 'package:fluxer_app/core/theme/theme_color_editor.dart';
@@ -178,6 +177,7 @@ class ThemePreferenceState {
     String? customThemeCss,
     bool syncThemeColorsFromThemeStudio = true,
     bool syncThemeColorsToThemeStudio = true,
+    bool customThemeCssEditedLocally = false,
     FluxerThemeMode? inflightTheme,
   }) {
     final _BuiltColorThemes themes = _buildColorThemes(
@@ -193,12 +193,12 @@ class ThemePreferenceState {
       customThemeCss: normalizeCustomThemeCss(customThemeCss),
       syncThemeColorsFromThemeStudio: syncThemeColorsFromThemeStudio,
       syncThemeColorsToThemeStudio: syncThemeColorsToThemeStudio,
+      customThemeCssEditedLocally: customThemeCssEditedLocally,
       inflightTheme: inflightTheme,
       darkColorTheme: themes.dark,
       darkLegacyColorTheme: themes.darkLegacy,
       lightColorTheme: themes.light,
       coalColorTheme: themes.coal,
-      layoutTheme: FluxerLayoutTheme.scaled(scaleFactor: scaleFactor),
     );
   }
 
@@ -211,12 +211,12 @@ class ThemePreferenceState {
     required this.customThemeCss,
     required this.syncThemeColorsFromThemeStudio,
     required this.syncThemeColorsToThemeStudio,
+    required this.customThemeCssEditedLocally,
     required this.inflightTheme,
     required this.darkColorTheme,
     required this.darkLegacyColorTheme,
     required this.lightColorTheme,
     required this.coalColorTheme,
-    required this.layoutTheme,
   });
 
   final FluxerThemeMode mode;
@@ -227,16 +227,14 @@ class ThemePreferenceState {
   final String? customThemeCss;
   final bool syncThemeColorsFromThemeStudio;
   final bool syncThemeColorsToThemeStudio;
+  final bool customThemeCssEditedLocally;
 
-  /// Non-null while a server PATCH for this theme is in flight. UI uses this
-  /// to disable swatches and surface a spinner on the targeted swatch.
   final FluxerThemeMode? inflightTheme;
 
   final FluxerColorTheme darkColorTheme;
   final FluxerColorTheme darkLegacyColorTheme;
   final FluxerColorTheme lightColorTheme;
   final FluxerColorTheme coalColorTheme;
-  final FluxerLayoutTheme layoutTheme;
 
   bool get isSyncing => inflightTheme != null;
 
@@ -269,6 +267,7 @@ class ThemePreferenceState {
     Object? customThemeCss = unspecifiedCustomThemeCss,
     bool? syncThemeColorsFromThemeStudio,
     bool? syncThemeColorsToThemeStudio,
+    bool? customThemeCssEditedLocally,
     bool clearCustomThemeCss = false,
     Object? inflightTheme = _kInflightSentinel,
     bool rebuildAllColorThemes = true,
@@ -331,6 +330,8 @@ class ThemePreferenceState {
           syncThemeColorsFromThemeStudio ?? this.syncThemeColorsFromThemeStudio,
       syncThemeColorsToThemeStudio:
           syncThemeColorsToThemeStudio ?? this.syncThemeColorsToThemeStudio,
+      customThemeCssEditedLocally:
+          customThemeCssEditedLocally ?? this.customThemeCssEditedLocally,
       inflightTheme: identical(inflightTheme, _kInflightSentinel)
           ? this.inflightTheme
           : inflightTheme as FluxerThemeMode?,
@@ -338,9 +339,6 @@ class ThemePreferenceState {
       darkLegacyColorTheme: themes.darkLegacy,
       lightColorTheme: themes.light,
       coalColorTheme: themes.coal,
-      layoutTheme: nextScaleFactor == this.scaleFactor
-          ? layoutTheme
-          : FluxerLayoutTheme.scaled(scaleFactor: nextScaleFactor),
     );
   }
 }
@@ -417,7 +415,10 @@ class ThemePreference extends _$ThemePreference {
       if (decoded is! Map<String, dynamic>) {
         return false;
       }
-      await _applyRemoteUserSettings(UserSettingsResponse.fromJson(decoded));
+      await _applyRemoteUserSettings(
+        UserSettingsResponse.fromJson(decoded),
+        fromCache: true,
+      );
       return true;
     } on Object catch (e, st) {
       talker.warning('[ThemePreference] Cached settings apply failed', e, st);
@@ -436,21 +437,22 @@ class ThemePreference extends _$ThemePreference {
     }
   }
 
-  Future<void> _applyRemoteUserSettings(UserSettingsResponse settings) async {
+  Future<void> _applyRemoteUserSettings(
+    UserSettingsResponse settings, {
+    bool fromCache = false,
+  }) async {
     await ref
         .read(syncedPreferencesStoreProvider)
         .hydrateFromUserSettings(
           settings,
           themeCustomizationApplier: applySyncedThemeCustomization,
+          fromCache: fromCache,
         );
     if (state.syncAcrossDevices && state.mode != FluxerThemeMode.system) {
       await applyServerSettings(settings);
     }
   }
 
-  /// Switches the theme. When sync is active and the target is non-system,
-  /// blocks on a server PATCH and only commits on success. Throws on failure
-  /// so the caller (UI) can surface a toast.
   Future<void> setTheme(FluxerThemeMode mode) async {
     if (state.inflightTheme != null) {
       return;
@@ -505,15 +507,17 @@ class ThemePreference extends _$ThemePreference {
   }
 
   Future<void> setSaturationFactor(double value) async {
-    final double clamped = clampSaturationFactor(value);
     final ThemePreferenceState current = state;
     state = ThemePreferenceState(
       mode: current.mode,
       scaleFactor: current.scaleFactor,
       chatFontSize: current.chatFontSize,
       syncAcrossDevices: current.syncAcrossDevices,
-      saturationFactor: clamped,
+      saturationFactor: clampSaturationFactor(value),
       customThemeCss: current.customThemeCss,
+      syncThemeColorsFromThemeStudio: current.syncThemeColorsFromThemeStudio,
+      syncThemeColorsToThemeStudio: current.syncThemeColorsToThemeStudio,
+      customThemeCssEditedLocally: current.customThemeCssEditedLocally,
       inflightTheme: current.inflightTheme,
     );
     await _persist();
@@ -550,6 +554,7 @@ class ThemePreference extends _$ThemePreference {
         chatFontSize: updateChatFontSize ? chatFontSize : null,
         scaleFactor: updateScaleFactor ? scaleFactor : null,
         clearCustomThemeCss: applyCustomThemeCss && clearCustomThemeCss,
+        customThemeCssEditedLocally: applyCustomThemeCss ? false : null,
       );
       await _persist();
     } finally {
@@ -557,9 +562,6 @@ class ThemePreference extends _$ThemePreference {
     }
   }
 
-  /// Toggles cross-device theme sync. Toggling ON pushes the current theme
-  /// and blocks on the ack — on failure, the toggle reverts. Throws on
-  /// failure so the caller can surface a toast.
   Future<void> setSyncAcrossDevices({required bool value}) async {
     if (state.mode == FluxerThemeMode.system) {
       return;
@@ -591,11 +593,6 @@ class ThemePreference extends _$ThemePreference {
     }
   }
 
-  /// Apply settings received from the server (READY hydration or
-  /// `USER_SETTINGS_UPDATE` echo). No-op when sync is effectively disabled
-  /// (raw flag off OR the device is in system mode), or when a local change
-  /// is already in flight (we don't want a stale echo to fight it). Persists
-  /// locally; never pushes back.
   Future<void> applyServerSettings(UserSettingsResponse settings) async {
     final String? currentUserId = ref.read(currentUserIdProvider);
     if (_userId == null ||
@@ -716,6 +713,7 @@ class ThemePreference extends _$ThemePreference {
       customThemeCss: nextCss.isEmpty ? null : nextCss,
       syncThemeColorsFromThemeStudio: current.syncThemeColorsFromThemeStudio,
       syncThemeColorsToThemeStudio: current.syncThemeColorsToThemeStudio,
+      customThemeCssEditedLocally: true,
       inflightTheme: current.inflightTheme,
     );
   }

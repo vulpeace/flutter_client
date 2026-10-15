@@ -2,7 +2,6 @@ import 'package:fluxer_app/material_ui.dart';
 
 class FluxerLayoutTheme extends ThemeExtension<FluxerLayoutTheme> {
   const FluxerLayoutTheme({
-    required this.scaleFactor,
     required this.s1,
     required this.s1_5,
     required this.s2,
@@ -34,15 +33,15 @@ class FluxerLayoutTheme extends ThemeExtension<FluxerLayoutTheme> {
     required this.settingsSwitchRowMinHeight,
     required this.settingsSwitchGroupedRowMinHeight,
     required this.touchTargetMin,
+    required this.pageGutter,
+    required this.groupRowInset,
   });
 
-  factory FluxerLayoutTheme.scaled({double scaleFactor = 1.0}) {
-    double s(double base) => base * scaleFactor;
-    BorderRadius r(double base) =>
-        BorderRadius.all(Radius.circular(base * scaleFactor));
+  factory FluxerLayoutTheme.scaled() {
+    double s(double base) => base;
+    BorderRadius r(double base) => BorderRadius.all(Radius.circular(base));
 
     return FluxerLayoutTheme(
-      scaleFactor: scaleFactor,
       s1: s(4),
       s1_5: s(6),
       s2: s(8),
@@ -74,10 +73,10 @@ class FluxerLayoutTheme extends ThemeExtension<FluxerLayoutTheme> {
       settingsSwitchRowMinHeight: s(44),
       settingsSwitchGroupedRowMinHeight: s(68),
       touchTargetMin: s(44),
+      pageGutter: s(16),
+      groupRowInset: s(16),
     );
   }
-
-  final double scaleFactor;
 
   final double s1;
   final double s1_5;
@@ -92,7 +91,6 @@ class FluxerLayoutTheme extends ThemeExtension<FluxerLayoutTheme> {
   final double s16;
   final double s20;
 
-  // Radius
   final BorderRadius radiusSm;
   final BorderRadius radiusMd;
   final BorderRadius radiusLg;
@@ -100,43 +98,29 @@ class FluxerLayoutTheme extends ThemeExtension<FluxerLayoutTheme> {
   final BorderRadius radiusXxl;
   final BorderRadius radiusFull;
 
-  // Layout Dimensions
   final double sidebarWidth;
   final double headerHeight;
   final double guildListWidth;
   final double mobileBottomNavHeight;
   final double userAreaHeight;
 
-  // Switch dimensions
   final double switchTrackWidth;
   final double switchTrackHeight;
   final double switchThumbSize;
   final double switchThumbInset;
   final double switchIconSize;
 
-  // Settings switch row dimensions
   final double settingsSwitchRowMinHeight;
   final double settingsSwitchGroupedRowMinHeight;
 
-  // Minimum interactive control size
   final double touchTargetMin;
 
-  @override
-  FluxerLayoutTheme copyWith({double? scaleFactor}) {
-    if (scaleFactor != null && scaleFactor != this.scaleFactor) {
-      return FluxerLayoutTheme.scaled(scaleFactor: scaleFactor);
-    }
-    return this;
-  }
+  final double pageGutter;
+  final double groupRowInset;
 
   @override
-  FluxerLayoutTheme lerp(FluxerLayoutTheme? other, double t) {
-    if (other is! FluxerLayoutTheme) {
-      return this;
-    }
+  FluxerLayoutTheme copyWith() => this;
 
-    final lerpedScaleFactor =
-        scaleFactor + (other.scaleFactor - scaleFactor) * t;
-    return FluxerLayoutTheme.scaled(scaleFactor: lerpedScaleFactor);
-  }
+  @override
+  FluxerLayoutTheme lerp(FluxerLayoutTheme? other, double t) => this;
 }

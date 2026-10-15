@@ -5,8 +5,170 @@ part 'guild_drag_provider.g.dart';
 
 const double kGuildDragCollapseThreshold = 12;
 const double kGuildNavbarWidth = 72;
+const double kGuildDragFeedbackSize = 48;
+const double kGuildDragHoverSpeedThresholdPxPerMs = 2;
+const Duration kGuildDragHoverDwell = Duration(milliseconds: 70);
+const double kGuildDragSeamAdjacentTolerance = 4;
+const double kGuildRailAutoScrollEdgeExtent = 56;
+const double kGuildRailAutoScrollMaxSpeed = 900;
+const double kFolderCombineSplit = 0.34;
+const double kFolderCombineUpperSplit = 0.66;
+const double kGuildMergeCombineSplit = 0.44;
+const double kGuildMergeCombineUpperSplit = 0.56;
+const double kFolderCombineEdgeInset = 0.1;
+const double kGuildMergeCombineEdgeInset = 0.05;
+
+double clampGuildDragFeedbackCenterY({
+  required double centerY,
+  double? boundsTop,
+  double? boundsBottom,
+}) {
+  if (boundsTop == null || boundsBottom == null) {
+    return centerY;
+  }
+  const double halfExtent = kGuildDragFeedbackSize / 2;
+  final double minY = boundsTop + halfExtent;
+  final double maxY = boundsBottom - halfExtent;
+  if (maxY < minY) {
+    return centerY.clamp(boundsTop, boundsBottom);
+  }
+  return centerY.clamp(minY, maxY);
+}
+
+double guildRailAutoScrollVelocity({
+  required double pointerY,
+  required double top,
+  required double bottom,
+}) {
+  final double halfHeight = (bottom - top) / 2;
+  final double extent = halfHeight < kGuildRailAutoScrollEdgeExtent
+      ? halfHeight
+      : kGuildRailAutoScrollEdgeExtent;
+  if (extent <= 0) {
+    return 0;
+  }
+  final double intoTop = top + extent - pointerY;
+  if (intoTop > 0) {
+    return -kGuildRailAutoScrollMaxSpeed * (intoTop / extent).clamp(0.0, 1.0);
+  }
+  final double intoBottom = pointerY - (bottom - extent);
+  if (intoBottom > 0) {
+    return kGuildRailAutoScrollMaxSpeed * (intoBottom / extent).clamp(0.0, 1.0);
+  }
+  return 0;
+}
 
 enum DropPosition { before, after, combine }
+
+@immutable
+class GuildDropHoverIntent {
+  const GuildDropHoverIntent({
+    required this.targetId,
+    required this.isFolder,
+    required this.position,
+  });
+
+  final String targetId;
+  final bool isFolder;
+  final DropPosition position;
+
+  @override
+  bool operator ==(Object other) {
+    return other is GuildDropHoverIntent &&
+        other.targetId == targetId &&
+        other.isFolder == isFolder &&
+        other.position == position;
+  }
+
+  @override
+  int get hashCode => Object.hash(targetId, isFolder, position);
+}
+
+@immutable
+class GuildDragTargetBounds {
+  const GuildDragTargetBounds({
+    required this.itemId,
+    required this.isFolder,
+    required this.top,
+    required this.bottom,
+  });
+
+  final String itemId;
+  final bool isFolder;
+  final double top;
+  final double bottom;
+}
+
+bool shouldDeferGuildHoverUpdate({
+  required double verticalSpeedPxPerMs,
+  required Duration dwellInPendingTarget,
+  required bool hasPendingChange,
+}) {
+  if (!hasPendingChange) {
+    return false;
+  }
+  if (verticalSpeedPxPerMs < kGuildDragHoverSpeedThresholdPxPerMs) {
+    return false;
+  }
+  if (dwellInPendingTarget >= kGuildDragHoverDwell) {
+    return false;
+  }
+  return true;
+}
+
+class _ResolvedGuildHoverIntent {
+  const _ResolvedGuildHoverIntent({required this.intent, required this.bounds});
+
+  final GuildDropHoverIntent? intent;
+  final List<GuildDragTargetBounds> bounds;
+}
+
+GuildDropHoverIntent normalizeGuildDropSeam({
+  required GuildDropHoverIntent intent,
+  required List<GuildDragTargetBounds> targets,
+}) {
+  if (intent.position != DropPosition.after) {
+    return intent;
+  }
+
+  GuildDragTargetBounds? current;
+  for (final GuildDragTargetBounds target in targets) {
+    if (target.itemId == intent.targetId) {
+      current = target;
+      break;
+    }
+  }
+  if (current == null) {
+    return intent;
+  }
+
+  GuildDragTargetBounds? nextTarget;
+  double? nextTop;
+  for (final GuildDragTargetBounds target in targets) {
+    if (target.itemId == intent.targetId) {
+      continue;
+    }
+    if (target.top < current.bottom - kGuildDragSeamAdjacentTolerance) {
+      continue;
+    }
+    if (nextTop == null || target.top < nextTop) {
+      nextTop = target.top;
+      nextTarget = target;
+    }
+  }
+  if (nextTarget == null) {
+    return intent;
+  }
+  if (nextTarget.top > current.bottom + kGuildDragSeamAdjacentTolerance) {
+    return intent;
+  }
+
+  return GuildDropHoverIntent(
+    targetId: nextTarget.itemId,
+    isFolder: nextTarget.isFolder,
+    position: DropPosition.before,
+  );
+}
 
 class RegisteredGuildDragTarget {
   const RegisteredGuildDragTarget({
@@ -26,6 +188,7 @@ class DragState {
   const DragState({
     this.dragItemId,
     this.dragSourceIsFolder = false,
+    this.dragSourceAllowGuildMerge = true,
     this.hoverTargetId,
     this.hoverTargetIsFolder = false,
     this.dropPosition,
@@ -36,6 +199,7 @@ class DragState {
 
   final String? dragItemId;
   final bool dragSourceIsFolder;
+  final bool dragSourceAllowGuildMerge;
   final String? hoverTargetId;
   final bool hoverTargetIsFolder;
   final DropPosition? dropPosition;
@@ -45,23 +209,23 @@ class DragState {
 
   bool get isDragging => dragItemId != null;
   bool get hasHoverTarget => hoverTargetId != null;
-  bool get showMobileDragFeedback =>
+  bool get showTouchDragFeedback =>
       isDragging && hasMovedFromHoldPoint && dragFeedbackGlobalY != null;
 
-  /// Whether [itemId] should visually collapse while being dragged.
   bool shouldCollapseDragSource({
     required String itemId,
-    required bool useLongPressDrag,
+    required bool useTouchDrag,
   }) {
     if (dragItemId != itemId) {
       return false;
     }
-    return !useLongPressDrag || hasMovedFromHoldPoint;
+    return !useTouchDrag || hasMovedFromHoldPoint;
   }
 
   DragState copyWith({
     String? dragItemId,
     bool? dragSourceIsFolder,
+    bool? dragSourceAllowGuildMerge,
     String? hoverTargetId,
     bool? hoverTargetIsFolder,
     DropPosition? dropPosition,
@@ -77,6 +241,8 @@ class DragState {
     return DragState(
       dragItemId: clearDragItemId ? null : (dragItemId ?? this.dragItemId),
       dragSourceIsFolder: dragSourceIsFolder ?? this.dragSourceIsFolder,
+      dragSourceAllowGuildMerge:
+          dragSourceAllowGuildMerge ?? this.dragSourceAllowGuildMerge,
       hoverTargetId: clearHoverTargetId
           ? null
           : (hoverTargetId ?? this.hoverTargetId),
@@ -96,14 +262,117 @@ class DragState {
   }
 }
 
+@immutable
+class GuildDragItemVisualState {
+  const GuildDragItemVisualState({
+    required this.dropPosition,
+    required this.collapseSource,
+  });
+
+  final DropPosition? dropPosition;
+  final bool collapseSource;
+
+  @override
+  bool operator ==(Object other) {
+    return other is GuildDragItemVisualState &&
+        other.dropPosition == dropPosition &&
+        other.collapseSource == collapseSource;
+  }
+
+  @override
+  int get hashCode => Object.hash(dropPosition, collapseSource);
+}
+
+GuildDragItemVisualState guildDragVisualStateForItem({
+  required DragState state,
+  required String itemId,
+  required bool useTouchDrag,
+}) {
+  final bool showDropIndicators = !useTouchDrag || state.hasMovedFromHoldPoint;
+  final DropPosition? dropPosition =
+      showDropIndicators && state.hoverTargetId == itemId
+      ? state.dropPosition
+      : null;
+  final bool collapseSource = state.shouldCollapseDragSource(
+    itemId: itemId,
+    useTouchDrag: useTouchDrag,
+  );
+  return GuildDragItemVisualState(
+    dropPosition: dropPosition,
+    collapseSource: collapseSource,
+  );
+}
+
 @Riverpod(keepAlive: true)
 class GuildDrag extends _$GuildDrag {
   Offset? _dragStartGlobalPosition;
+  double? _lastHoverSpeedSampleY;
+  DateTime? _lastHoverSpeedSampleTime;
+  String? _pendingDwellTargetId;
+  DateTime? _pendingDwellStartedAt;
   final Map<String, RegisteredGuildDragTarget> _dragTargets =
       <String, RegisteredGuildDragTarget>{};
+  double? _verticalBoundsTop;
+  double? _verticalBoundsBottom;
+  Offset? _lastRawDragGlobalPosition;
 
   @override
   DragState build() => const DragState();
+
+  void updateVerticalBounds({required double top, required double bottom}) {
+    _verticalBoundsTop = top;
+    _verticalBoundsBottom = bottom;
+  }
+
+  void clearVerticalBounds() {
+    _verticalBoundsTop = null;
+    _verticalBoundsBottom = null;
+  }
+
+  Offset _clampDragGlobalPosition(Offset globalPosition) {
+    return Offset(
+      globalPosition.dx,
+      clampGuildDragFeedbackCenterY(
+        centerY: globalPosition.dy,
+        boundsTop: _verticalBoundsTop,
+        boundsBottom: _verticalBoundsBottom,
+      ),
+    );
+  }
+
+  Offset _clampHoverGlobalPosition(Offset globalPosition) {
+    final double? top = _verticalBoundsTop;
+    final double? bottom = _verticalBoundsBottom;
+    if (top == null || bottom == null || bottom < top) {
+      return globalPosition;
+    }
+    return Offset(globalPosition.dx, globalPosition.dy.clamp(top, bottom));
+  }
+
+  double autoScrollVelocity() {
+    final Offset? pointer = _lastRawDragGlobalPosition;
+    final double? top = _verticalBoundsTop;
+    final double? bottom = _verticalBoundsBottom;
+    if (!state.hasMovedFromHoldPoint ||
+        pointer == null ||
+        top == null ||
+        bottom == null) {
+      return 0;
+    }
+    return guildRailAutoScrollVelocity(
+      pointerY: pointer.dy,
+      top: top,
+      bottom: bottom,
+    );
+  }
+
+  bool refreshHoverAfterAutoScroll() {
+    final Offset? pointer = _lastRawDragGlobalPosition;
+    if (!state.hasMovedFromHoldPoint || pointer == null) {
+      return false;
+    }
+    return _updateHoverFromGlobalPosition(pointer, stabilizeHover: false);
+  }
 
   void registerDragTarget(RegisteredGuildDragTarget target) {
     _dragTargets[target.itemId] = target;
@@ -117,40 +386,85 @@ class GuildDrag extends _$GuildDrag {
     String itemId, {
     required bool sourceIsFolder,
     double? anchorGlobalCenterX,
+    bool allowGuildMerge = true,
   }) {
     _dragStartGlobalPosition = null;
+    _lastRawDragGlobalPosition = null;
+    _resetHoverStabilization();
     state = DragState(
       dragItemId: itemId,
       dragSourceIsFolder: sourceIsFolder,
+      dragSourceAllowGuildMerge: allowGuildMerge,
       dragAnchorGlobalCenterX: anchorGlobalCenterX,
     );
   }
 
   bool updateDragMovement(Offset globalPosition) {
+    _lastRawDragGlobalPosition = globalPosition;
     _dragStartGlobalPosition ??= globalPosition;
     final bool hasMoved =
         state.hasMovedFromHoldPoint ||
         (globalPosition.dy - _dragStartGlobalPosition!.dy).abs() >=
             kGuildDragCollapseThreshold;
-    final bool yChanged = state.dragFeedbackGlobalY != globalPosition.dy;
+    final Offset clampedPosition = _clampDragGlobalPosition(globalPosition);
+    final bool yChanged = state.dragFeedbackGlobalY != clampedPosition.dy;
     final bool movedChanged = state.hasMovedFromHoldPoint != hasMoved;
     if (yChanged || movedChanged) {
       state = state.copyWith(
-        dragFeedbackGlobalY: globalPosition.dy,
+        dragFeedbackGlobalY: clampedPosition.dy,
         hasMovedFromHoldPoint: hasMoved,
       );
     }
     if (!hasMoved) {
       return false;
     }
-    return _updateHoverFromGlobalPosition(globalPosition);
+    return _updateHoverFromGlobalPosition(globalPosition, stabilizeHover: true);
   }
 
-  bool _updateHoverFromGlobalPosition(Offset globalPosition) {
+  bool finalizeHoverForDrop() {
+    final Offset? globalPosition = _lastRawDragGlobalPosition;
+    if (globalPosition == null) {
+      return false;
+    }
+    return _updateHoverFromGlobalPosition(
+      globalPosition,
+      stabilizeHover: false,
+    );
+  }
+
+  bool _updateHoverFromGlobalPosition(
+    Offset globalPosition, {
+    required bool stabilizeHover,
+  }) {
+    final Offset hoverPosition = _clampHoverGlobalPosition(globalPosition);
+    final _ResolvedGuildHoverIntent resolved = _resolveHoverIntent(
+      hoverPosition,
+    );
+    if (stabilizeHover) {
+      final double speed = _recordHoverSpeedSample(hoverPosition);
+      _trackPendingDwell(resolved.intent);
+      final GuildDropHoverIntent? applied = _hoverIntentFromState();
+      final bool hasPendingChange = resolved.intent != applied;
+      final Duration dwell = _pendingDwellStartedAt == null
+          ? Duration.zero
+          : DateTime.now().difference(_pendingDwellStartedAt!);
+      if (shouldDeferGuildHoverUpdate(
+        verticalSpeedPxPerMs: speed,
+        dwellInPendingTarget: dwell,
+        hasPendingChange: hasPendingChange,
+      )) {
+        return false;
+      }
+    }
+    return _applyHoverIntent(resolved.intent, targetBounds: resolved.bounds);
+  }
+
+  _ResolvedGuildHoverIntent _resolveHoverIntent(Offset globalPosition) {
     RegisteredGuildDragTarget? matchedTarget;
     RegisteredGuildDragTarget? closestTarget;
     double smallestMatchingArea = double.infinity;
     double closestDistance = double.infinity;
+    final List<GuildDragTargetBounds> bounds = <GuildDragTargetBounds>[];
 
     for (final RegisteredGuildDragTarget target in _dragTargets.values) {
       final RenderBox? renderBox =
@@ -162,6 +476,14 @@ class GuildDrag extends _$GuildDrag {
       final double top = topLeft.dy;
       final double bottom = top + renderBox.size.height;
       final double centerY = top + renderBox.size.height / 2;
+      bounds.add(
+        GuildDragTargetBounds(
+          itemId: target.itemId,
+          isFolder: target.isFolder,
+          top: top,
+          bottom: bottom,
+        ),
+      );
 
       if (globalPosition.dy >= top && globalPosition.dy <= bottom) {
         final double area = renderBox.size.width * renderBox.size.height;
@@ -182,8 +504,7 @@ class GuildDrag extends _$GuildDrag {
     matchedTarget ??= closestTarget;
 
     if (matchedTarget == null || matchedTarget.itemId == state.dragItemId) {
-      clearHover();
-      return false;
+      return _ResolvedGuildHoverIntent(intent: null, bounds: bounds);
     }
 
     final RenderBox renderBox =
@@ -197,31 +518,174 @@ class GuildDrag extends _$GuildDrag {
       sourceIsFolder: state.dragSourceIsFolder,
       targetIsFolder: matchedTarget.isFolder,
       allowCombine: matchedTarget.allowCombine,
+      sourceAllowGuildMerge: state.dragSourceAllowGuildMerge,
       currentPosition: currentPosition,
     );
-    return updateHover(
-      targetId: matchedTarget.itemId,
-      isFolder: matchedTarget.isFolder,
+    return _ResolvedGuildHoverIntent(
+      intent: normalizeGuildDropSeam(
+        intent: GuildDropHoverIntent(
+          targetId: matchedTarget.itemId,
+          isFolder: matchedTarget.isFolder,
+          position: position,
+        ),
+        targets: bounds,
+      ),
+      bounds: bounds,
+    );
+  }
+
+  Offset? landingGlobalCenter() {
+    final String? targetId = state.hoverTargetId;
+    final DropPosition? position = state.dropPosition;
+    if (targetId == null || position == null) {
+      return null;
+    }
+    return _globalCenterForTarget(targetId, position);
+  }
+
+  Offset? dragSourceGlobalCenter() {
+    final String? sourceId = state.dragItemId;
+    if (sourceId == null) {
+      return null;
+    }
+    return _globalCenterForTarget(sourceId, DropPosition.combine);
+  }
+
+  Offset? _globalCenterForTarget(String itemId, DropPosition position) {
+    final RegisteredGuildDragTarget? target = _dragTargets[itemId];
+    if (target == null) {
+      return null;
+    }
+    final RenderBox? renderBox =
+        target.boundsKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) {
+      return null;
+    }
+    final Offset topLeft = renderBox.localToGlobal(Offset.zero);
+    final double centerX = topLeft.dx + renderBox.size.width / 2;
+    final double top = topLeft.dy;
+    final double bottom = top + renderBox.size.height;
+    final double centerY = top + renderBox.size.height / 2;
+    switch (position) {
+      case DropPosition.before:
+        return Offset(centerX, top);
+      case DropPosition.after:
+        return Offset(centerX, bottom);
+      case DropPosition.combine:
+        return Offset(centerX, centerY);
+    }
+  }
+
+  List<GuildDragTargetBounds> _collectTargetBounds() {
+    final List<GuildDragTargetBounds> bounds = <GuildDragTargetBounds>[];
+    for (final RegisteredGuildDragTarget target in _dragTargets.values) {
+      final RenderBox? renderBox =
+          target.boundsKey.currentContext?.findRenderObject() as RenderBox?;
+      if (renderBox == null || !renderBox.hasSize) {
+        continue;
+      }
+      final Offset topLeft = renderBox.localToGlobal(Offset.zero);
+      bounds.add(
+        GuildDragTargetBounds(
+          itemId: target.itemId,
+          isFolder: target.isFolder,
+          top: topLeft.dy,
+          bottom: topLeft.dy + renderBox.size.height,
+        ),
+      );
+    }
+    return bounds;
+  }
+
+  GuildDropHoverIntent? _hoverIntentFromState() {
+    final String? targetId = state.hoverTargetId;
+    final DropPosition? position = state.dropPosition;
+    if (targetId == null || position == null) {
+      return null;
+    }
+    return GuildDropHoverIntent(
+      targetId: targetId,
+      isFolder: state.hoverTargetIsFolder,
       position: position,
     );
+  }
+
+  bool _applyHoverIntent(
+    GuildDropHoverIntent? intent, {
+    List<GuildDragTargetBounds>? targetBounds,
+  }) {
+    if (intent == null) {
+      final bool hadHover = state.hasHoverTarget || state.dropPosition != null;
+      clearHover();
+      return hadHover;
+    }
+    return updateHover(
+      targetId: intent.targetId,
+      isFolder: intent.isFolder,
+      position: intent.position,
+      targetBounds: targetBounds,
+    );
+  }
+
+  double _recordHoverSpeedSample(Offset globalPosition) {
+    final DateTime now = DateTime.now();
+    if (_lastHoverSpeedSampleTime == null || _lastHoverSpeedSampleY == null) {
+      _lastHoverSpeedSampleTime = now;
+      _lastHoverSpeedSampleY = globalPosition.dy;
+      return 0;
+    }
+    final double elapsedMs =
+        now.difference(_lastHoverSpeedSampleTime!).inMicroseconds.toDouble() /
+        1000;
+    _lastHoverSpeedSampleTime = now;
+    final double deltaY = globalPosition.dy - _lastHoverSpeedSampleY!;
+    _lastHoverSpeedSampleY = globalPosition.dy;
+    if (elapsedMs <= 0) {
+      return 0;
+    }
+    return deltaY.abs() / elapsedMs;
+  }
+
+  void _trackPendingDwell(GuildDropHoverIntent? resolved) {
+    final String? targetId = resolved?.targetId;
+    if (targetId != _pendingDwellTargetId) {
+      _pendingDwellTargetId = targetId;
+      _pendingDwellStartedAt = DateTime.now();
+    }
+  }
+
+  void _resetHoverStabilization() {
+    _lastHoverSpeedSampleY = null;
+    _lastHoverSpeedSampleTime = null;
+    _pendingDwellTargetId = null;
+    _pendingDwellStartedAt = null;
   }
 
   bool updateHover({
     required String targetId,
     required bool isFolder,
     required DropPosition position,
+    List<GuildDragTargetBounds>? targetBounds,
   }) {
-    final bool didChangeTarget = state.hoverTargetId != targetId;
-    final bool didChangePosition = state.dropPosition != position;
+    final GuildDropHoverIntent intent = normalizeGuildDropSeam(
+      intent: GuildDropHoverIntent(
+        targetId: targetId,
+        isFolder: isFolder,
+        position: position,
+      ),
+      targets: targetBounds ?? _collectTargetBounds(),
+    );
+    final bool didChangeTarget = state.hoverTargetId != intent.targetId;
+    final bool didChangePosition = state.dropPosition != intent.position;
     if (!didChangeTarget &&
         !didChangePosition &&
-        state.hoverTargetIsFolder == isFolder) {
+        state.hoverTargetIsFolder == intent.isFolder) {
       return false;
     }
     state = state.copyWith(
-      hoverTargetId: targetId,
-      hoverTargetIsFolder: isFolder,
-      dropPosition: position,
+      hoverTargetId: intent.targetId,
+      hoverTargetIsFolder: intent.isFolder,
+      dropPosition: intent.position,
     );
     return didChangeTarget || didChangePosition;
   }
@@ -239,6 +703,8 @@ class GuildDrag extends _$GuildDrag {
 
   void endDrag() {
     _dragStartGlobalPosition = null;
+    _lastRawDragGlobalPosition = null;
+    _resetHoverStabilization();
     state = const DragState();
   }
 }
@@ -248,24 +714,42 @@ DropPosition resolveGuildDropPosition({
   required bool sourceIsFolder,
   required bool targetIsFolder,
   required bool allowCombine,
+  bool sourceAllowGuildMerge = true,
   DropPosition? currentPosition,
 }) {
-  const double inset = 0.08;
+  const double reorderInset = 0.08;
 
   if (sourceIsFolder || !allowCombine) {
     return _resolveSplitDropPosition(
       ratio: ratio,
       split: 0.5,
       currentPosition: currentPosition,
-      inset: inset,
+      inset: reorderInset,
+    );
+  }
+  if (targetIsFolder) {
+    return _resolveSplitDropPosition(
+      ratio: ratio,
+      split: kFolderCombineSplit,
+      currentPosition: currentPosition,
+      inset: kFolderCombineEdgeInset,
+      upperSplit: kFolderCombineUpperSplit,
+    );
+  }
+  if (!sourceAllowGuildMerge) {
+    return _resolveSplitDropPosition(
+      ratio: ratio,
+      split: 0.5,
+      currentPosition: currentPosition,
+      inset: reorderInset,
     );
   }
   return _resolveSplitDropPosition(
     ratio: ratio,
-    split: 0.25,
+    split: kGuildMergeCombineSplit,
     currentPosition: currentPosition,
-    inset: inset,
-    upperSplit: 0.75,
+    inset: kGuildMergeCombineEdgeInset,
+    upperSplit: kGuildMergeCombineUpperSplit,
   );
 }
 
