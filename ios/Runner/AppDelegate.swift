@@ -45,7 +45,6 @@ import flutter_callkit_incoming
     if measureApiKey.isEmpty || measureApiUrl.isEmpty {
       return false
     }
-    MSRNetworkInterceptor.enable(on: URLSessionConfiguration.ephemeral)
     let clientInfo = ClientInfo(apiKey: measureApiKey, apiUrl: measureApiUrl)
     Measure.initialize(with: clientInfo, config: BaseMeasureConfig(autoStart: false))
     measureInitialized = true
@@ -155,6 +154,7 @@ import flutter_callkit_incoming
     ApplePushBridge.shared.registerReplyCategory()
     AssistantBridge.shared.register(engineBridge: engineBridge)
     PhysicalKeyboardBridge.shared.register(engineBridge: engineBridge)
+    NativePasteBridge.shared.register(engineBridge: engineBridge)
     VoiceSpeakerRouteBridge.shared.register(
       messenger: engineBridge.applicationRegistrar.messenger()
     )

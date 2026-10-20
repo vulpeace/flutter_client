@@ -22,6 +22,7 @@ import 'package:fluxer_app/core/router/route_kind.dart';
 import 'package:fluxer_app/core/router/route_names.dart';
 import 'package:fluxer_app/core/router/route_state_providers.dart';
 import 'package:fluxer_app/core/theme/fluxer_theme_extension.dart';
+import 'package:fluxer_app/features/channels/data/channel_repository.dart';
 import 'package:fluxer_app/features/channels/data/read_state_repository.dart';
 import 'package:fluxer_app/features/channels/domain/announcement_follow.dart';
 import 'package:fluxer_app/features/channels/domain/channel.dart';
@@ -34,6 +35,7 @@ import 'package:fluxer_app/features/channels/presentation/modals/show_channel_in
 import 'package:fluxer_app/features/channels/presentation/sheets/channel_follow_sheet.dart';
 import 'package:fluxer_app/features/channels/presentation/sheets/channel_notification_settings_sheet.dart';
 import 'package:fluxer_app/features/channels/presentation/sheets/create_channel_sheet.dart';
+import 'package:fluxer_app/features/channels/presentation/sheets/duplicate_channel_sheet.dart';
 import 'package:fluxer_app/features/channels/presentation/sheets/move_channel_to_category_sheet.dart';
 import 'package:fluxer_app/features/channels/presentation/sheets/mute_duration_sheet.dart';
 import 'package:fluxer_app/features/channels/presentation/widgets/channel_icon.dart';
@@ -44,6 +46,7 @@ import 'package:fluxer_app/features/channels/presentation/widgets/voice_channel_
 import 'package:fluxer_app/features/channels/presentation/widgets/voice_channel_user_count.dart';
 import 'package:fluxer_app/features/channels/providers/channel_list_view_model.dart';
 import 'package:fluxer_app/features/channels/providers/channel_mute_provider.dart';
+import 'package:fluxer_app/features/channels/providers/channel_providers.dart';
 import 'package:fluxer_app/features/channels/providers/channel_sidebar_icon_connect_bits_provider.dart';
 import 'package:fluxer_app/features/channels/providers/guild_channel_unread_snapshot_provider.dart';
 import 'package:fluxer_app/features/channels/providers/guild_collapsed_categories_provider.dart';
@@ -73,8 +76,10 @@ import 'package:fluxer_app/features/settings/providers/advanced_preferences_prov
 import 'package:fluxer_app/features/settings/providers/appearance_preferences_provider.dart';
 import 'package:fluxer_app/features/settings/providers/user_settings_view_model.dart';
 import 'package:fluxer_app/features/shell/presentation/responsive_layout.dart';
+import 'package:fluxer_app/features/shell/providers/shell_sidebar_width_provider.dart';
 import 'package:fluxer_app/features/threads/presentation/thread_sidebar_tile.dart';
 import 'package:fluxer_app/features/ui/action_menu/context_menu_widgets.dart';
+import 'package:fluxer_app/features/ui/scroller/fluxer_smooth_scrollbar.dart';
 import 'package:fluxer_app/features/ui/ui.dart';
 import 'package:fluxer_app/features/voice/presentation/sheets/voice_channel_chat_sheet.dart';
 import 'package:fluxer_app/features/voice/presentation/sheets/voice_p2p_sheets.dart';
@@ -99,10 +104,10 @@ import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 part 'guild_sidebar_banner_layout.dart';
-part 'guild_sidebar_header.dart';
+part 'guild_sidebar_category_header.dart';
 part 'guild_sidebar_channel_list.dart';
 part 'guild_sidebar_channel_tile.dart';
-part 'guild_sidebar_category_header.dart';
+part 'guild_sidebar_header.dart';
 part 'guild_sidebar_helpers.dart';
 part 'guild_sidebar_members_tile.dart';
 
@@ -171,8 +176,13 @@ class _GuildSidebarState extends ConsumerState<GuildSidebar> {
     final bool showStaticHeader =
         guildOutageUnavailable || !guildReady || !hasReceivedInitialChannelList;
 
+    final double channelSidebarWidth = watchResolvedShellChannelSidebarWidth(
+      ref,
+      context,
+    );
+
     return Container(
-      width: isMobileLayout(context) ? null : context.layout.sidebarWidth,
+      width: channelSidebarHasFixedWidth(context) ? channelSidebarWidth : null,
       padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
       decoration: BoxDecoration(
         color: context.colors.channelSidebarBackground,
@@ -184,6 +194,7 @@ class _GuildSidebarState extends ConsumerState<GuildSidebar> {
             GuildSidebarHeader(
               guild: guild,
               outageUnavailable: guildOutageUnavailable,
+              channelSidebarWidth: channelSidebarWidth,
               onTap: guildOutageUnavailable || guild == null
                   ? null
                   : () => unawaited(_handleServerHeaderTap(context, guild)),

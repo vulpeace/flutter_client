@@ -321,7 +321,7 @@ class _GuildSidebarChannelListState
       channelId: channelId,
       unread:
           ref.read(
-            guildChannelUnreadSnapshotProvider(widget.guildId),
+            guildListedChannelUnreadSnapshotProvider(widget.guildId),
           )[channelId] ??
           ref.read(channelUnreadOrLastKnownProvider(channelId)),
     );
@@ -381,6 +381,9 @@ class _GuildSidebarChannelListState
     ];
     if (!listEquals(indicatorOrder, _indicatorOrder)) {
       _indicatorOrder = indicatorOrder;
+      if (_needsSelectedReveal && indicatorOrder.isNotEmpty) {
+        _scheduleSelectedReveal();
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !widget.isActive) {
           return;
@@ -394,7 +397,10 @@ class _GuildSidebarChannelListState
       ..listen(guildReadStateProvider.select((s) => s[widget.guildId]), (_, _) {
         _scrollIndicator.scheduleUpdate();
       })
-      ..listen(guildChannelUnreadSnapshotProvider(widget.guildId), (_, _) {
+      ..listen(guildListedChannelUnreadSnapshotProvider(widget.guildId), (
+        _,
+        _,
+      ) {
         _scrollIndicator.scheduleUpdate();
       })
       ..listen<List<GuildSidebarEntry>>(guildSidebarEntriesProvider, (
@@ -404,9 +410,6 @@ class _GuildSidebarChannelListState
         _scrollIndicator.scheduleUpdate();
         if (_needsScrollClamp && next.isNotEmpty) {
           _scheduleScrollClamp();
-        }
-        if (_needsSelectedReveal && next.isNotEmpty) {
-          _scheduleSelectedReveal();
         }
       })
       ..listen<String?>(activeChannelIdProvider, (_, String? next) {
@@ -525,14 +528,19 @@ class _GuildSidebarChannelListState
     );
     final Widget child = ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: GuildScrollIndicatorLayer(
-        controller: _scrollIndicator,
-        label: FluxerLocalizations.of(context).scrollIndicatorNewMessages,
-        animated: false,
+      child: FluxerSmoothScrollbar(
+        controller: _scrollController,
         topInset: kGuildSidebarScrollIndicatorTopInset,
-        child: Opacity(
-          opacity: _needsSelectedReveal && _indicatorOrder.isNotEmpty ? 0 : 1,
-          child: channelListView,
+        bottomInset: kGuildScrollIndicatorEdgeInset,
+        child: GuildScrollIndicatorLayer(
+          controller: _scrollIndicator,
+          label: FluxerLocalizations.of(context).scrollIndicatorNewMessages,
+          animated: false,
+          topInset: kGuildSidebarScrollIndicatorTopInset,
+          child: Opacity(
+            opacity: _needsSelectedReveal && _indicatorOrder.isNotEmpty ? 0 : 1,
+            child: channelListView,
+          ),
         ),
       ),
     );

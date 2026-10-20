@@ -807,10 +807,6 @@ class GatewayEventHandler {
     final readStatesByChannelId = <String, GatewayReadState>{
       for (final readState in event.readStates) readState.id: readState,
     };
-    final hasUnavailableGuilds = event.rawGuilds.any(
-      (guild) => guild['unavailable'] as bool? ?? false,
-    );
-
     final List<String> prunedGuildIds = <String>[];
     final List<String> prunedChannelIds = <String>[];
     final List<VoiceState> readyVoiceStates = <VoiceState>[];
@@ -960,8 +956,7 @@ class GatewayEventHandler {
           final GuildCreateData guildData = parsed.guildData;
           final String guildId = guildData.guild.id;
           final Set<String> snapshotChannelIds = <String>{};
-          snapshotChannelIdsByGuildId[guildId] = snapshotChannelIds;
-          snapshotRoleIdsByGuildId[guildId] = <String>{
+          final Set<String> snapshotRoleIds = <String>{
             for (final GuildRoleResponse role in guildData.roles) role.id,
           };
           guildCompanions.add(
@@ -1044,6 +1039,12 @@ class GatewayEventHandler {
                   )
                   .toList(),
             ));
+          }
+          if (snapshotChannelIds.isNotEmpty) {
+            snapshotChannelIdsByGuildId[guildId] = snapshotChannelIds;
+          }
+          if (snapshotRoleIds.isNotEmpty) {
+            snapshotRoleIdsByGuildId[guildId] = snapshotRoleIds;
           }
         }
 
@@ -1158,7 +1159,6 @@ class GatewayEventHandler {
               for (final ChannelResponse ch in event.privateChannels) ch.id,
             });
         await database.messageDao.deleteMessagesForChannels(closedDmIds);
-        await database.readStateDao.deleteReadStatesForChannels(closedDmIds);
         prunedChannelIds.addAll(closedDmIds);
       }
 
@@ -1255,7 +1255,6 @@ class GatewayEventHandler {
             stickyUnreadMessageId: sticky,
             version: rs.version,
             flags: rs.flags,
-            missingSince: existing?.missingSince,
           );
         }
         await database.readStateDao.upsertReadStates(readStateCompanions);
@@ -1356,9 +1355,6 @@ class GatewayEventHandler {
     _lastReadyUserId = event.user.id;
     _hasCommittedReady = true;
     final hydratedSettings = event.userSettings;
-    if (!hasUnavailableGuilds) {
-      unawaited(readStateRepository?.cleanupStaleReadStates());
-    }
     _forgetPrunedChannels(prunedChannelIds);
     _emit(() {
       for (final guildId in prunedGuildIds) {
@@ -2283,8 +2279,10 @@ class GatewayEventHandler {
     _invalidateMentionCacheForChannel(channelId, guildId: event.guildId);
     unawaited(database.messageDao.deleteMessagesForChannel(channelId));
     unawaited(_deleteChannelRows(channelId));
-    readStateWriteBatcher?.discard(channelId);
-    unawaited(database.readStateDao.deleteReadState(channelId));
+    if (event.guildId != null) {
+      readStateWriteBatcher?.discard(channelId);
+      unawaited(database.readStateDao.deleteReadState(channelId));
+    }
     unawaited(_deleteThreadsForParent(channelId));
   }
 

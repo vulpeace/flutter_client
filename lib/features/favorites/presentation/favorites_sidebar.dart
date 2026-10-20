@@ -8,6 +8,7 @@ import 'package:fluxer_app/features/favorites/presentation/widgets/favorites_cha
 import 'package:fluxer_app/features/favorites/presentation/widgets/favorites_header.dart';
 import 'package:fluxer_app/features/favorites/utils/navigate_to_favorite_channel.dart';
 import 'package:fluxer_app/features/shell/presentation/responsive_layout.dart';
+import 'package:fluxer_app/features/shell/providers/shell_sidebar_width_provider.dart';
 import 'package:fluxer_app/material_ui.dart';
 
 class FavoritesSidebar extends ConsumerWidget {
@@ -17,14 +18,19 @@ class FavoritesSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedChannelId = ref.watch(activeChannelIdProvider);
 
+    final double channelSidebarWidth = watchResolvedShellChannelSidebarWidth(
+      ref,
+      context,
+    );
+
     return Container(
-      width: isMobileLayout(context) ? null : 240,
+      width: channelSidebarHasFixedWidth(context) ? channelSidebarWidth : null,
       padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
       decoration: BoxDecoration(
         color: context.colors.channelSidebarBackground,
-        border: isMobileLayout(context)
-            ? null
-            : Border(right: BorderSide(color: context.colors.borderColor)),
+        border: channelSidebarHasFixedWidth(context)
+            ? Border(right: BorderSide(color: context.colors.borderColor))
+            : null,
       ),
       child: Column(
         children: [
