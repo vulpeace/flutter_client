@@ -11,6 +11,8 @@ const String kPushRelayOrigin = String.fromEnvironment(
 /// [isFluxerPushRelayUrl], which gates the in-app relay consent notice.
 const String kOfficialPushRelayOrigin = 'https://push.fluxer.com';
 
+const String kPushRelayNoticeUrl = 'https://fluxer.com/push-relay';
+
 String fcmRelayUrl({required String appId, required String deviceToken}) {
   return '$kPushRelayOrigin/relay/v1/fcm/${_segment(appId)}/${_segment(deviceToken)}';
 }
