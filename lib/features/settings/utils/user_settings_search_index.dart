@@ -581,6 +581,12 @@ final List<_UserSettingsSearchOption> _userSettingsSearchOptions = [
     label: _l((l10n) => l10n.accessibilityPlayAnimatedEmojisLabel),
   ),
   _UserSettingsSearchOption(
+    id: 'av:change-audio-output',
+    section: UserSettingsSection.audioAndVideo,
+    fieldId: 'audio',
+    label: _l((l10n) => l10n.voiceChangeAudioOutputLabel),
+  ),
+  _UserSettingsSearchOption(
     id: 'av:input-device',
     section: UserSettingsSection.audioAndVideo,
     fieldId: 'audio',

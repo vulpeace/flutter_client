@@ -122,9 +122,11 @@ Raw<StreamSubscription<GatewayEvent>?> gatewayEventListener(Ref ref) {
 
   void runReadyGuildSync(String? guildId) {
     ifMounted(() {
+      final GuildSync guildSync = ref.read(guildSyncProvider.notifier);
       if (guildId != null) {
-        ref.read(guildSyncProvider.notifier).syncIfNeeded(guildId, force: true);
+        guildSync.syncIfNeeded(guildId, force: true);
       }
+      guildSync.flushPending();
     });
   }
 

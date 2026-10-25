@@ -705,7 +705,12 @@ class _ChannelTextareaState extends ConsumerState<ChannelTextarea>
         context,
         title: l10n.plutoniumNotAvailableTitle,
         builder: (sheetContext, _) => Padding(
-          padding: EdgeInsets.all(sheetContext.layout.s4),
+          padding: EdgeInsets.fromLTRB(
+            sheetContext.layout.s4,
+            sheetContext.layout.s4,
+            sheetContext.layout.s4,
+            0,
+          ),
           child: Text(
             l10n.plutoniumNotAvailableBody,
             style: sheetContext.textStyles.bodyMedium.copyWith(
@@ -945,13 +950,13 @@ class _ChannelTextareaState extends ConsumerState<ChannelTextarea>
       AsyncValue<ChannelMessagePermissions>? previous,
       AsyncValue<ChannelMessagePermissions> next,
     ) {
-      final bool wasEnabled = channelMessagePermissionsForComposer(
+      final bool wasDenied = channelMessagePermissionsForComposer(
         previous ?? const AsyncValue<ChannelMessagePermissions>.loading(),
-      ).isComposerEnabled;
-      final bool isEnabled = channelMessagePermissionsForComposer(
+      ).showsNoSendPermissionHint;
+      final bool isDenied = channelMessagePermissionsForComposer(
         next,
-      ).isComposerEnabled;
-      if (wasEnabled && !isEnabled) {
+      ).showsNoSendPermissionHint;
+      if (!wasDenied && isDenied) {
         _clearComposerForBlockedAccess();
       }
     });
