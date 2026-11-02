@@ -3,6 +3,15 @@ name: Android Canary FCM Build
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      android_build_number:
+        description: Pre-allocated Nodus Android versionCode for this release
+        required: false
+        type: string
+    outputs:
+      build_number:
+        description: Android versionCode allocated by Nodus
+        value: ${{ jobs.build-canary.outputs.build_number }}
 
 permissions:
   contents: read
@@ -13,6 +22,8 @@ jobs:
   build-canary:
     name: Build canary APK
     runs-on: ubuntu-latest
+    outputs:
+      build_number: ${{ steps.android_build_number.outputs.build_number }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -22,7 +33,9 @@ jobs:
 
       - name: Resolve build number
         id: android_build_number
-        run: echo "build_number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          PREALLOCATED_BUILD_NUMBER: ${{ inputs.android_build_number }}
+        run: echo "build_number=${PREALLOCATED_BUILD_NUMBER:-$(git rev-list --count HEAD)}" >> "$GITHUB_OUTPUT"
 
       - name: Sync submodules
         run: git submodule update --init --recursive
@@ -137,7 +150,7 @@ jobs:
         run: tool/measure/write_native_measure_config.sh
 
       - name: Build canary split APKs
-        run: flutter build apk --release --split-per-abi --flavor canaryFcm --build-number ${{ steps.android_build_number.outputs.build_number }} --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=fcm --dart-define=BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --dart-define=CANARY_NUMBER=${{ steps.android_build_number.outputs.build_number }} --dart-define=PUSH_RELAY_ORIGIN="${{ secrets.PUSH_RELAY_ORIGIN }}"
+        run: flutter build apk --release --split-per-abi --flavor canaryFcm --build-number ${{ steps.android_build_number.outputs.build_number }} -P force-version-code-ignoring-abi=true --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=fcm --dart-define=BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --dart-define=CANARY_NUMBER=${{ steps.android_build_number.outputs.build_number }} --dart-define=PUSH_RELAY_ORIGIN="${{ secrets.PUSH_RELAY_ORIGIN }}"
 
       - name: Attest canary FCM release binaries
         uses: ./.github/actions/attest-android-binaries

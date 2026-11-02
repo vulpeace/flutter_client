@@ -16,6 +16,15 @@
 
 # Fluxer Flutter Client
 
+<p align="center">
+  <a href="https://github.com/fluxerapp/flutter_client/releases">
+    <img src="./docs/media/badge_github.png" alt="Get it on GitHub" height="78" align="middle">
+  </a>
+  <a href="https://play.google.com/store/apps/details?id=com.fluxer&amp;referrer=utm_source%3Dgithub-android-readme">
+    <img src="./docs/media/badge_google_play.png" alt="Download at https://play.google.com/store/apps/details?id=com.fluxer" height="78" align="middle">
+  </a>
+</p>
+
 This is the repo for the official Fluxer mobile / tablet app powered by Flutter (desktop is in the works also but mobile is the main focus currently).
 
 You can follow what is planned in the [Fluxer roadmap](https://fluxer.app/blog/roadmap-2026).
@@ -34,6 +43,7 @@ Join here: [Join Link](https://fluxer.gg/fluxer-labs)
 | Platform | Channel | Status | Get it |
 | --- | --- | --- | --- |
 | iOS | App Store | Soon | — |
+| iOS | AltStore PAL | Soon | — |
 | iOS | TestFlight | Unavailable (Apple-side bug, support contacted) | [Join TestFlight](https://testflight.apple.com/join/PKZR6pK9) |
 | Android | Google Play | Early Access (Beta) | [Download](https://play.google.com/store/apps/details?id=com.fluxer) |
 | Android | GitHub APK | Beta | [Releases](https://github.com/fluxerapp/flutter_client/releases) (FCM/OSS below) |
