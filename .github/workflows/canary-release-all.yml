@@ -30,6 +30,10 @@ jobs:
     name: Android FCM build
     needs: allocate-android-build-number
     uses: ./.github/workflows/android-canary-fcm.yml
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     with:
       android_build_number: ${{ needs.allocate-android-build-number.outputs.build_number }}
     secrets: inherit
