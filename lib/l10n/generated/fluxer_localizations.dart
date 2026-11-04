@@ -1538,6 +1538,12 @@ abstract class FluxerLocalizations {
   /// **'No passkeys found for this app. Log in with email and password instead.'**
   String get passkeyNoCredentials;
 
+  /// Error on the two-factor step when the account needs a passkey and none for it is available on this device.
+  ///
+  /// In en, this message translates to:
+  /// **'This device has no passkey for this account. Use the device or password manager where you saved it.'**
+  String get passkeyNoCredentialsForAccount;
+
   /// Error when device does not support passkeys.
   ///
   /// In en, this message translates to:
@@ -3524,6 +3530,24 @@ abstract class FluxerLocalizations {
   /// **'Show {badgeLabel} on your profile'**
   String profileBadgesShowOnProfile(String badgeLabel);
 
+  /// Short count of profile badges not shown inline, opens the full list.
+  ///
+  /// In en, this message translates to:
+  /// **'+{count}'**
+  String profileBadgesOverflowButton(int count);
+
+  /// Tooltip for the overflow control that opens every profile badge.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all badges'**
+  String get profileBadgesShowAllTooltip;
+
+  /// Screen reader label for the profile badge overflow control.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {+{count} more badge, show all} other {+{count} more badges, show all}}'**
+  String profileBadgesShowAllSemantic(int count);
+
   /// Note under the Visionary ID row when its visibility switch is disabled.
   ///
   /// In en, this message translates to:
@@ -3656,35 +3680,11 @@ abstract class FluxerLocalizations {
   /// **'On the wall'**
   String get operatorPassWallOnTheWall;
 
-  /// Label for a pending wall name.
-  ///
-  /// In en, this message translates to:
-  /// **'In review'**
-  String get operatorPassWallInReview;
-
-  /// Review due date label.
-  ///
-  /// In en, this message translates to:
-  /// **'by {date}'**
-  String operatorPassWallReviewBy(String date);
-
   /// Status when a wall name is live.
   ///
   /// In en, this message translates to:
   /// **'Live'**
   String get operatorPassWallLive;
-
-  /// Declined wall name status.
-  ///
-  /// In en, this message translates to:
-  /// **'Declined: {name}. {reason}.'**
-  String operatorPassWallDeclined(String name, String reason);
-
-  /// Team note on a declined wall name.
-  ///
-  /// In en, this message translates to:
-  /// **'Team note: {note}'**
-  String operatorPassWallTeamNote(String note);
 
   /// Wall listing hidden by staff.
   ///
@@ -3752,12 +3752,6 @@ abstract class FluxerLocalizations {
   /// **'Name on the wall'**
   String get operatorPassWallNameSettingsLabel;
 
-  /// Hint under wall name field.
-  ///
-  /// In en, this message translates to:
-  /// **'We check new names before they go live.'**
-  String get operatorPassWallNameHint;
-
   /// Opt out of the Operators' wall.
   ///
   /// In en, this message translates to:
@@ -3775,30 +3769,6 @@ abstract class FluxerLocalizations {
   /// In en, this message translates to:
   /// **'Use 32 characters or fewer.'**
   String get operatorPassWallNameTooLong;
-
-  /// Decline reason for wall name.
-  ///
-  /// In en, this message translates to:
-  /// **'Breaks the community guidelines'**
-  String get operatorPassWallDeclineGuidelines;
-
-  /// Decline reason for wall name.
-  ///
-  /// In en, this message translates to:
-  /// **'Pretends to be someone else'**
-  String get operatorPassWallDeclineImpersonation;
-
-  /// Decline reason for wall name.
-  ///
-  /// In en, this message translates to:
-  /// **'Uses a name or image without the rights to it'**
-  String get operatorPassWallDeclineRights;
-
-  /// Decline reason for wall name.
-  ///
-  /// In en, this message translates to:
-  /// **'Not suitable for younger users'**
-  String get operatorPassWallDeclineAge;
 
   /// Avatar helper text for non-premium users, mentioning Plutonium requirement for animated avatars.
   ///
@@ -7111,6 +7081,12 @@ abstract class FluxerLocalizations {
   /// In en, this message translates to:
   /// **'This mature community is not available to your account.'**
   String get matureCommunityUnavailableBody;
+
+  /// Body when mature access must be enabled on web or desktop instead of in the iOS app.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on age-restricted communities and channels at fluxer.com in your browser or in the desktop app. They stay hidden in the iOS app until you do.'**
+  String get matureContentIosWebOptInBody;
 
   /// Body when a minor cannot access a mature category.
   ///

@@ -839,6 +839,10 @@ class FluxerLocalizationsNl extends FluxerLocalizations {
       'Geen toegangssleutels gevonden voor deze app. Log in in plaats daarvan met e-mail en wachtwoord.';
 
   @override
+  String get passkeyNoCredentialsForAccount =>
+      'This device has no passkey for this account. Use the device or password manager where you saved it.';
+
+  @override
   String get passkeyDeviceNotSupported =>
       'Passkeys worden niet ondersteund op dit apparaat.';
 
@@ -2030,6 +2034,25 @@ class FluxerLocalizationsNl extends FluxerLocalizations {
   }
 
   @override
+  String profileBadgesOverflowButton(int count) {
+    return '+$count';
+  }
+
+  @override
+  String get profileBadgesShowAllTooltip => 'Show all badges';
+
+  @override
+  String profileBadgesShowAllSemantic(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '+$count more badges, show all',
+      one: '+$count more badge, show all',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get profileBadgesVisionaryNumberNote =>
       'Shown only when your Visionary badge is visible and not masked.';
 
@@ -2110,25 +2133,7 @@ class FluxerLocalizationsNl extends FluxerLocalizations {
   String get operatorPassWallOnTheWall => 'On the wall';
 
   @override
-  String get operatorPassWallInReview => 'In review';
-
-  @override
-  String operatorPassWallReviewBy(String date) {
-    return 'by $date';
-  }
-
-  @override
   String get operatorPassWallLive => 'Live';
-
-  @override
-  String operatorPassWallDeclined(String name, String reason) {
-    return 'Declined: $name. $reason.';
-  }
-
-  @override
-  String operatorPassWallTeamNote(String note) {
-    return 'Team note: $note';
-  }
 
   @override
   String get operatorPassWallHidden => 'Hidden by our team for now.';
@@ -2167,10 +2172,6 @@ class FluxerLocalizationsNl extends FluxerLocalizations {
   String get operatorPassWallNameSettingsLabel => 'Name on the wall';
 
   @override
-  String get operatorPassWallNameHint =>
-      'We check new names before they go live.';
-
-  @override
   String get operatorPassWallDontListMe => 'Don\'t list me';
 
   @override
@@ -2179,21 +2180,6 @@ class FluxerLocalizationsNl extends FluxerLocalizations {
 
   @override
   String get operatorPassWallNameTooLong => 'Use 32 characters or fewer.';
-
-  @override
-  String get operatorPassWallDeclineGuidelines =>
-      'Breaks the community guidelines';
-
-  @override
-  String get operatorPassWallDeclineImpersonation =>
-      'Pretends to be someone else';
-
-  @override
-  String get operatorPassWallDeclineRights =>
-      'Uses a name or image without the rights to it';
-
-  @override
-  String get operatorPassWallDeclineAge => 'Not suitable for younger users';
 
   @override
   String get avatarDescriptionNonPremium =>
@@ -4403,6 +4389,10 @@ class FluxerLocalizationsNl extends FluxerLocalizations {
   @override
   String get matureCommunityUnavailableBody =>
       'Deze community voor volwassenen is niet beschikbaar voor je account.';
+
+  @override
+  String get matureContentIosWebOptInBody =>
+      'Turn on age-restricted communities and channels at fluxer.com in your browser or in the desktop app. They stay hidden in the iOS app until you do.';
 
   @override
   String get matureCategoryUnavailableBody =>
