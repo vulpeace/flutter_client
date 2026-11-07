@@ -14,6 +14,7 @@ import 'package:fluxer_app/features/threads/domain/thread_channel.dart';
 import 'package:fluxer_app/features/threads/presentation/thread_menu_sheet.dart';
 import 'package:fluxer_app/features/threads/providers/thread_ui_providers.dart';
 import 'package:fluxer_app/features/threads/utils/thread_actions.dart';
+import 'package:fluxer_app/features/threads/utils/thread_title.dart';
 import 'package:fluxer_app/features/ui/ui.dart';
 import 'package:fluxer_app/l10n/generated/fluxer_localizations.dart';
 import 'package:fluxer_app/material_ui.dart';
@@ -41,6 +42,11 @@ class ThreadSidebarTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final String title = watchThreadTitleText(
+      ref,
+      thread,
+      FluxerLocalizations.of(context),
+    );
     final bool isSelected = ref.watch(
       activeChannelIdProvider.select((String? id) => id == thread.id),
     );
@@ -94,8 +100,8 @@ class ThreadSidebarTile extends ConsumerWidget {
           ChannelUnreadIndicator.positioned(
             faded: state.isUnreadIndicatorMuted,
           ),
-        Positioned(
-          left: _kThreadSpineInset,
+        PositionedDirectional(
+          start: _kThreadSpineInset,
           top: 0,
           bottom: 0,
           width: _kThreadSpineWidth,
@@ -103,6 +109,7 @@ class ThreadSidebarTile extends ConsumerWidget {
             painter: _ThreadSpinePainter(
               color: context.colors.interactiveMuted,
               isLast: isLast,
+              textDirection: Directionality.of(context),
             ),
           ),
         ),
@@ -114,11 +121,15 @@ class ThreadSidebarTile extends ConsumerWidget {
                 isSelected: isSelected,
                 selectedColor: context.colors.backgroundModifierSelected,
                 borderRadius: BorderRadius.circular(4),
-                margin: const EdgeInsets.only(right: 5, top: 1, bottom: 1),
-                padding: const EdgeInsets.fromLTRB(6, 6, 8, 6),
+                margin: const EdgeInsetsDirectional.only(
+                  end: 5,
+                  top: 1,
+                  bottom: 1,
+                ),
+                padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 8, 6),
                 semanticLabel: navigationItemSemanticLabel(
                   l10n: FluxerLocalizations.of(context),
-                  name: thread.name,
+                  name: title,
                   isSelected: isSelected,
                   hasUnread: showUnreadIndicator,
                   mentionCount: showMentionBadge ? mentionCount : 0,
@@ -135,7 +146,7 @@ class ThreadSidebarTile extends ConsumerWidget {
                   children: <Widget>[
                     Expanded(
                       child: Text(
-                        thread.name,
+                        title,
                         style: context.textStyles.channelName.copyWith(
                           color: textColor,
                           fontSize: 14,
@@ -161,13 +172,23 @@ class ThreadSidebarTile extends ConsumerWidget {
 }
 
 class _ThreadSpinePainter extends CustomPainter {
-  const _ThreadSpinePainter({required this.color, required this.isLast});
+  const _ThreadSpinePainter({
+    required this.color,
+    required this.isLast,
+    required this.textDirection,
+  });
 
   final Color color;
   final bool isLast;
+  final TextDirection textDirection;
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (textDirection == TextDirection.rtl) {
+      canvas
+        ..translate(size.width, 0)
+        ..scale(-1, 1);
+    }
     final Paint paint = Paint()
       ..color = color
       ..strokeWidth = _kThreadSpineStroke
@@ -196,5 +217,7 @@ class _ThreadSpinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ThreadSpinePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.isLast != isLast;
+      oldDelegate.color != color ||
+      oldDelegate.isLast != isLast ||
+      oldDelegate.textDirection != textDirection;
 }

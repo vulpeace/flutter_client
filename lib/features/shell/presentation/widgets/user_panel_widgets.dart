@@ -79,31 +79,36 @@ class _UserPanelControlButtonState extends State<UserPanelControlButton> {
       background = colors.backgroundModifierSelected;
     }
 
-    final Widget button = MouseRegion(
-      onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
-      onExit: enabled ? (_) => setState(() => _hovered = false) : null,
-      child: SizedBox(
-        width: kUserPanelControlSize,
-        height: kUserPanelControlSize,
-        child: Material(
-          color: background,
-          borderRadius: layout.radiusMd,
-          child: InkWell(
+    final Widget button = Semantics(
+      button: true,
+      enabled: enabled,
+      selected: widget.isSelected,
+      child: MouseRegion(
+        onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
+        onExit: enabled ? (_) => setState(() => _hovered = false) : null,
+        child: SizedBox(
+          width: kUserPanelControlSize,
+          height: kUserPanelControlSize,
+          child: Material(
+            color: background,
             borderRadius: layout.radiusMd,
-            onTap: widget.onPressed,
-            child: Center(
-              child: IconTheme(
-                data: IconThemeData(
-                  color:
-                      enabled &&
-                          _hovered &&
-                          !widget.isActive &&
-                          !widget.isSelected
-                      ? colors.controlButtonHoverText
-                      : foreground,
-                  size: kUserPanelControlIconSize,
+            child: InkWell(
+              borderRadius: layout.radiusMd,
+              onTap: widget.onPressed,
+              child: Center(
+                child: IconTheme(
+                  data: IconThemeData(
+                    color:
+                        enabled &&
+                            _hovered &&
+                            !widget.isActive &&
+                            !widget.isSelected
+                        ? colors.controlButtonHoverText
+                        : foreground,
+                    size: kUserPanelControlIconSize,
+                  ),
+                  child: widget.icon,
                 ),
-                child: widget.icon,
               ),
             ),
           ),
@@ -181,29 +186,35 @@ class _UserPanelMediaButtonState extends State<UserPanelMediaButton> {
       border = colors.backgroundModifierSelected;
     }
 
-    final Widget button = MouseRegion(
-      onEnter: canInteract ? (_) => setState(() => _hovered = true) : null,
-      onExit: canInteract ? (_) => setState(() => _hovered = false) : null,
-      child: SizedBox(
-        height: kUserPanelControlSize,
-        width: double.infinity,
-        child: Material(
-          color: background,
-          shape: RoundedRectangleBorder(
-            borderRadius: layout.radiusMd,
-            side: BorderSide(color: border),
-          ),
-          child: InkWell(
-            borderRadius: layout.radiusMd,
-            onTap: canInteract ? widget.onPressed : null,
-            onSecondaryTapDown: widget.onContextMenu,
-            child: Center(
-              child: IconTheme(
-                data: IconThemeData(
-                  color: foreground,
-                  size: kUserPanelControlIconSize,
+    final Widget button = Semantics(
+      button: true,
+      enabled: canInteract,
+      toggled: widget.isActive,
+      label: widget.tooltip,
+      child: MouseRegion(
+        onEnter: canInteract ? (_) => setState(() => _hovered = true) : null,
+        onExit: canInteract ? (_) => setState(() => _hovered = false) : null,
+        child: SizedBox(
+          height: kUserPanelControlSize,
+          width: double.infinity,
+          child: Material(
+            color: background,
+            shape: RoundedRectangleBorder(
+              borderRadius: layout.radiusMd,
+              side: BorderSide(color: border),
+            ),
+            child: InkWell(
+              borderRadius: layout.radiusMd,
+              onTap: canInteract ? widget.onPressed : null,
+              onSecondaryTapDown: widget.onContextMenu,
+              child: Center(
+                child: IconTheme(
+                  data: IconThemeData(
+                    color: foreground,
+                    size: kUserPanelControlIconSize,
+                  ),
+                  child: widget.icon,
                 ),
-                child: widget.icon,
               ),
             ),
           ),
@@ -214,6 +225,10 @@ class _UserPanelMediaButtonState extends State<UserPanelMediaButton> {
     if (widget.tooltip == null || widget.tooltip!.isEmpty) {
       return button;
     }
-    return Tooltip(message: widget.tooltip, child: button);
+    return Tooltip(
+      message: widget.tooltip,
+      excludeFromSemantics: true,
+      child: button,
+    );
   }
 }

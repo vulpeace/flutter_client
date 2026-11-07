@@ -5,8 +5,9 @@ import 'package:fluxer_app/core/theme/fluxer_theme_extension.dart';
 import 'package:fluxer_app/features/ui/bottom_sheet/fluxer_bottom_sheet.dart';
 import 'package:fluxer_app/features/ui/input/fluxer_clipboard_scope.dart';
 import 'package:fluxer_app/features/ui/tappable/fluxer_gesture_detector.dart';
+import 'package:fluxer_app/l10n/generated/fluxer_localizations.dart';
 import 'package:fluxer_app/material_ui.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:fluxer_app/shared/icons/phosphor.dart';
 
 const double kPickerSearchInputHeight = 40;
 
@@ -142,9 +143,9 @@ class _PickerSearchInputState extends State<PickerSearchInput> {
     );
 
     return Padding(
-      padding: EdgeInsets.only(
-        left: widget.horizontalPadding,
-        right: widget.rightPadding ?? widget.horizontalPadding,
+      padding: EdgeInsetsDirectional.only(
+        start: widget.horizontalPadding,
+        end: widget.rightPadding ?? widget.horizontalPadding,
         top: widget.topPadding,
         bottom: widget.bottomPadding,
       ),
@@ -189,9 +190,9 @@ class _PickerSearchInputState extends State<PickerSearchInput> {
                               height: 1.25,
                             ),
                             prefixIcon: Padding(
-                              padding: const EdgeInsets.only(
-                                left: 14,
-                                right: 7,
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 14,
+                                end: 7,
                               ),
                               child: Icon(
                                 PhosphorIconsBold.magnifyingGlass,
@@ -211,12 +212,13 @@ class _PickerSearchInputState extends State<PickerSearchInput> {
                             ),
                             filled: true,
                             fillColor: searchInputFillColor,
-                            contentPadding: const EdgeInsets.fromLTRB(
-                              0,
-                              10,
-                              14,
-                              10,
-                            ),
+                            contentPadding:
+                                const EdgeInsetsDirectional.fromSTEB(
+                                  0,
+                                  10,
+                                  14,
+                                  10,
+                                ),
                             border: idleBorder,
                             enabledBorder: idleBorder,
                             disabledBorder: idleBorder,
@@ -261,21 +263,25 @@ class _PickerSearchInputState extends State<PickerSearchInput> {
       children: [
         if (widget.rightCustomElement != null)
           Padding(
-            padding: EdgeInsets.only(right: text.isEmpty ? 8 : 0),
+            padding: EdgeInsetsDirectional.only(end: text.isEmpty ? 8 : 0),
             child: widget.rightCustomElement,
           ),
         if (text.isNotEmpty)
-          FluxerGestureDetector(
-            onTap: _clear,
-            behavior: HitTestBehavior.opaque,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 12, 7, 12),
-                child: Icon(
-                  PhosphorIconsFill.xCircle,
-                  size: 16,
-                  color: colors.textTertiary,
+          Semantics(
+            button: true,
+            label: FluxerLocalizations.of(context).userSettingsSearchClear,
+            child: FluxerGestureDetector(
+              onTap: _clear,
+              behavior: HitTestBehavior.opaque,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(8, 12, 7, 12),
+                  child: Icon(
+                    PhosphorIconsFill.xCircle,
+                    size: 16,
+                    color: colors.textTertiary,
+                  ),
                 ),
               ),
             ),

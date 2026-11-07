@@ -49,9 +49,9 @@ class _CategoryHeader extends ConsumerWidget {
                   )
                 : null,
             child: Padding(
-              padding: const EdgeInsets.only(
-                left: 12,
-                right: 8,
+              padding: const EdgeInsetsDirectional.only(
+                start: 12,
+                end: 8,
                 top: 16,
                 bottom: 4,
               ),
@@ -110,7 +110,9 @@ class _CategoryHeader extends ConsumerWidget {
       guildId,
       category.id,
     );
-    final String? mutedHint = isMuted ? formatMutedHintText(muteConfig) : null;
+    final String? mutedHint = isMuted
+        ? formatMutedHintText(muteConfig, l10n)
+        : null;
     final bool developerMode = ref
         .read(userSettingsViewModelProvider)
         .developerMode;
@@ -150,7 +152,7 @@ class _CategoryHeader extends ConsumerWidget {
       l10n: l10n,
       state: menuState,
     );
-    if (isMobileLayout(context)) {
+    if (!usesDesktopPointerUi(context)) {
       return FluxerBottomSheet.showScrollable<void>(
         context,
         title: category.name,
