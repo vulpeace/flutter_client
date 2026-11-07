@@ -15,10 +15,10 @@ import 'package:fluxer_app/features/ui/avatar/fluxer_avatar.dart';
 import 'package:fluxer_app/features/ui/tappable/fluxer_tappable.dart';
 import 'package:fluxer_app/l10n/generated/fluxer_localizations.dart';
 import 'package:fluxer_app/material_ui.dart';
+import 'package:fluxer_app/shared/icons/phosphor.dart';
 import 'package:fluxer_app/shared/utils/locale_upper_case.dart';
 import 'package:fluxer_app/shared/utils/relative_time.dart';
 import 'package:fluxer_dart/export.dart' hide ChannelType;
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 Color forumPostCardBackgroundColor(FluxerColorTheme colors) {
   if (colors.backgroundSecondary == colors.backgroundPrimary) {
@@ -37,6 +37,7 @@ class ForumPostCardData {
     this.isNew = false,
     this.unreadCount = 0,
     this.hasUnread = false,
+    this.authorBlocked = false,
   });
 
   final Channel forum;
@@ -47,6 +48,7 @@ class ForumPostCardData {
   final bool isNew;
   final int unreadCount;
   final bool hasUnread;
+  final bool authorBlocked;
 }
 
 const FluxerMediaDimensions _previewDimensions = FluxerMediaDimensions(
@@ -101,6 +103,9 @@ String? _previewUrl(Attachment attachment) {
 String _snippet(Message message) =>
     message.content.replaceAll(RegExp(r'\s+'), ' ').trim();
 
+String forumPostTitleText(ForumPostCardData data, FluxerLocalizations l10n) =>
+    data.authorBlocked ? l10n.forumPostBlockedAuthor : data.post.name;
+
 class ForumPostCard extends StatelessWidget {
   const ForumPostCard({
     required this.data,
@@ -128,13 +133,15 @@ class ForumPostCard extends StatelessWidget {
       forumAvailableTags(data.forum),
       postAppliedTags(post),
     );
-    final Attachment? preview = _previewAttachment(message);
+    final Attachment? preview = data.authorBlocked
+        ? null
+        : _previewAttachment(message);
     final String? previewUrl = preview == null ? null : _previewUrl(preview);
     final Color cardBackground = forumPostCardBackgroundColor(colors);
     return FluxerTappable(
       onTap: onTap,
       onLongPress: onLongPress,
-      semanticLabel: post.name,
+      semanticLabel: forumPostTitleText(data, l10n),
       builder: (BuildContext context, Set<WidgetState> states) => Container(
         margin: EdgeInsets.symmetric(
           horizontal: layout.s4,
@@ -166,8 +173,10 @@ class ForumPostCard extends StatelessWidget {
                     SizedBox(height: layout.s2),
                   ],
                   _ForumPostTitle(data: data),
-                  SizedBox(height: layout.s1),
-                  _ForumPostSnippet(data: data),
+                  if (!data.authorBlocked) ...<Widget>[
+                    SizedBox(height: layout.s1),
+                    _ForumPostSnippet(data: data),
+                  ],
                   SizedBox(height: layout.s2),
                   _ForumPostMeta(data: data, l10n: l10n),
                 ],
@@ -210,13 +219,15 @@ class ForumPostTile extends StatelessWidget {
     final colors = context.colors;
     final layout = context.layout;
     final FluxerLocalizations l10n = FluxerLocalizations.of(context);
-    final Attachment? preview = _previewAttachment(data.firstMessage);
+    final Attachment? preview = data.authorBlocked
+        ? null
+        : _previewAttachment(data.firstMessage);
     final String? previewUrl = preview == null ? null : _previewUrl(preview);
     final Color cardBackground = forumPostCardBackgroundColor(colors);
     return FluxerTappable(
       onTap: onTap,
       onLongPress: onLongPress,
-      semanticLabel: data.post.name,
+      semanticLabel: forumPostTitleText(data, l10n),
       builder: (BuildContext context, Set<WidgetState> states) => ClipRRect(
         borderRadius: layout.radiusXl,
         child: ColoredBox(
@@ -335,7 +346,7 @@ class _ForumPostTitle extends StatelessWidget {
         ],
         Expanded(
           child: Text(
-            post.name,
+            forumPostTitleText(data, l10n),
             maxLines: maxLines,
             overflow: TextOverflow.ellipsis,
             style: context.textStyles.bodyMedium.copyWith(
@@ -497,7 +508,7 @@ class _DefaultReactionButton extends StatelessWidget {
       surface: cardBackground,
     );
     return Padding(
-      padding: EdgeInsets.only(left: context.layout.s2),
+      padding: EdgeInsetsDirectional.only(start: context.layout.s2),
       child: FluxerTappable(
         onTap: onTap,
         toggled: me,

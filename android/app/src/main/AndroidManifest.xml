@@ -48,6 +48,7 @@
 
     <!-- Without a category, Xiaomi Game Turbo treats the app as a game and caps it at 60 Hz (flutter/flutter#192600). -->
     <application
+        android:supportsRtl="true"
         android:name=".FluxerApplication"
         android:allowBackup="false"
         android:label="${appLabel}"
@@ -74,6 +75,10 @@
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
+              />
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false"
               />
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

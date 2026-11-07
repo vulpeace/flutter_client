@@ -29,9 +29,9 @@ import 'package:fluxer_app/features/voice/utils/audio/processing_profile.dart';
 import 'package:fluxer_app/features/voice/utils/connection/session_navigation.dart';
 import 'package:fluxer_app/l10n/generated/fluxer_localizations.dart';
 import 'package:fluxer_app/material_ui.dart';
+import 'package:fluxer_app/shared/icons/phosphor.dart';
 import 'package:fluxer_app/shared/utils/chat_context_utils.dart';
 import 'package:fluxer_dart/gateway.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class VoiceConnectionStatus extends ConsumerWidget {
   const VoiceConnectionStatus({super.key});
@@ -65,7 +65,7 @@ class _FailedVoiceConnectionStatus extends ConsumerWidget {
             child: TextButton(
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 foregroundColor: context.colors.statusDanger,
               ),
               onPressed: () {
@@ -166,7 +166,9 @@ class _ResolvedVoiceConnectionStatus extends ConsumerWidget {
       final DmConversation? dm = voice.channelId == null
           ? null
           : findDmById(conversations, voice.channelId!);
-      channelLabel = dm?.displayName ?? voice.channelId ?? '';
+      channelLabel = dm == null
+          ? voice.channelId ?? ''
+          : dmConversationDisplayName(FluxerLocalizations.of(context), dm);
       guildLabel = '';
     }
 
@@ -233,7 +235,7 @@ class _ResolvedVoiceConnectionStatus extends ConsumerWidget {
                       child: TextButton(
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
-                          alignment: Alignment.centerLeft,
+                          alignment: AlignmentDirectional.centerStart,
                           foregroundColor: statusColor,
                         ),
                         onPressed: toggle,

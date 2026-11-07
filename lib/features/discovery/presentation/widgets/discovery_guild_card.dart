@@ -11,6 +11,7 @@ import 'package:fluxer_app/features/discovery/presentation/widgets/discovery_gui
 import 'package:fluxer_app/features/discovery/providers/discovery_controller.dart';
 import 'package:fluxer_app/features/guilds/domain/guild.dart';
 import 'package:fluxer_app/features/guilds/providers/guild_list_view_model.dart';
+import 'package:fluxer_app/features/moderation/domain/iar_context.dart';
 import 'package:fluxer_app/features/shell/presentation/responsive_layout.dart';
 import 'package:fluxer_app/features/ui/avatar/fluxer_guild_icon_avatar.dart';
 import 'package:fluxer_app/features/ui/badge/fluxer_guild_badge.dart';
@@ -20,11 +21,11 @@ import 'package:fluxer_app/features/ui/toast/fluxer_toast.dart';
 import 'package:fluxer_app/features/ui/toast/toast_provider.dart';
 import 'package:fluxer_app/l10n/generated/fluxer_localizations.dart';
 import 'package:fluxer_app/material_ui.dart';
+import 'package:fluxer_app/shared/icons/phosphor.dart';
 import 'package:fluxer_app/shared/utils/api_error_presentation.dart';
 import 'package:fluxer_dart/export.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 const String _discoverableFeature = 'DISCOVERABLE';
 const double _discoveryGuildIconSize = 48;
@@ -78,6 +79,11 @@ class DiscoveryGuildCard extends ConsumerWidget {
       guildId: guild.id,
       iconHash: guild.icon,
     );
+    final IarGuildContext reportTarget = IarGuildContext(
+      guildId: guild.id,
+      name: guild.name,
+      iconUrl: iconUrl,
+    );
     final String onlineCount = NumberFormat.decimalPattern(
       Localizations.localeOf(context).toString(),
     ).format(guild.onlineCount);
@@ -103,7 +109,7 @@ class DiscoveryGuildCard extends ConsumerWidget {
                           context,
                           ref,
                           details.globalPosition,
-                          guild.id,
+                          reportTarget,
                         ),
                       );
                     },
@@ -112,7 +118,7 @@ class DiscoveryGuildCard extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Padding(
-                    padding: EdgeInsets.fromLTRB(
+                    padding: EdgeInsetsDirectional.fromSTEB(
                       layout.s3,
                       layout.s3,
                       isMobile ? layout.s8 : layout.s3,
@@ -226,14 +232,14 @@ class DiscoveryGuildCard extends ConsumerWidget {
               ),
             ),
             if (isMobile)
-              Positioned(
+              PositionedDirectional(
                 top: layout.s1,
-                right: layout.s1,
+                end: layout.s1,
                 child: _DiscoveryCardMenuButton(
                   tooltip: l10n.chatMessageMore,
                   onPressed: (Offset position) {
                     unawaited(
-                      _showContextMenu(context, ref, position, guild.id),
+                      _showContextMenu(context, ref, position, reportTarget),
                     );
                   },
                 ),
@@ -248,7 +254,7 @@ class DiscoveryGuildCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Offset position,
-    String guildId,
+    IarGuildContext guild,
   ) async {
     final DiscoveryGuildCardAction? action =
         await showDiscoveryGuildContextMenu(context, position: position);
@@ -258,7 +264,7 @@ class DiscoveryGuildCard extends ConsumerWidget {
     await handleDiscoveryGuildCardAction(
       context: context,
       action: action,
-      guildId: guildId,
+      guild: guild,
     );
     if (!context.mounted) {
       return;
@@ -274,6 +280,8 @@ class DiscoveryGuildCard extends ConsumerWidget {
                 variant: FluxerToastVariant.success,
               ),
             );
+      case DiscoveryGuildCardAction.report:
+        return;
     }
   }
 

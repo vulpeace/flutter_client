@@ -51,6 +51,8 @@ import 'package:fluxer_app/features/profile/presentation/user_profile_sheet.dart
 import 'package:fluxer_app/features/quick_switcher/presentation/sheets/quick_switcher_bottom_sheet.dart';
 import 'package:fluxer_app/features/settings/providers/preferences/appearance_preferences_provider.dart';
 import 'package:fluxer_app/features/settings/providers/view_models/user_settings_view_model.dart';
+import 'package:fluxer_app/features/shell/navigation/shell_chat_back.dart'
+    show shellShowsConcurrentChannelList;
 import 'package:fluxer_app/features/shell/presentation/responsive_layout.dart';
 import 'package:fluxer_app/features/shell/presentation/sidebar_drawer.dart';
 import 'package:fluxer_app/features/ui/scroller/fluxer_smooth_scrollbar.dart';
@@ -58,12 +60,12 @@ import 'package:fluxer_app/features/ui/ui.dart';
 import 'package:fluxer_app/features/voice/utils/callkit/call_actions.dart';
 import 'package:fluxer_app/l10n/generated/fluxer_localizations.dart';
 import 'package:fluxer_app/material_ui.dart';
+import 'package:fluxer_app/shared/icons/phosphor.dart';
 import 'package:fluxer_app/shared/pages/add_friend_page.dart';
 import 'package:fluxer_app/shared/utils/api_error_presentation.dart';
 import 'package:fluxer_app/shared/utils/clipboard_utils.dart';
 import 'package:fluxer_app/shared/utils/navigation_item_semantics.dart';
 import 'package:fluxer_app/shared/widgets/debug_bottom_sheet.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class DMList extends ConsumerStatefulWidget {
   const DMList({super.key});
@@ -121,7 +123,7 @@ class _DMListState extends ConsumerState<DMList> {
   }
 
   void _scheduleScrollRestore({
-    required int? selectedRowIndex,
+    required int? routedRowIndex,
     required double rowExtent,
     required double topPadding,
   }) {
@@ -142,10 +144,10 @@ class _DMListState extends ConsumerState<DMList> {
       final double target;
       if (savedOffset != null) {
         target = savedOffset;
-      } else if (selectedRowIndex != null) {
+      } else if (routedRowIndex != null) {
         target =
             topPadding +
-            (selectedRowIndex + 0.5) * rowExtent -
+            (routedRowIndex + 0.5) * rowExtent -
             position.viewportDimension / 2;
       } else {
         return;
@@ -274,7 +276,10 @@ class _DMListState extends ConsumerState<DMList> {
     final List<DmConversation> convos = ref.watch(
       sortedDmConversationsProvider,
     );
-    final String? selectedId = ref.watch(activeChannelIdProvider);
+    final String? routedChannelId = ref.watch(activeChannelIdProvider);
+    final String? selectedId = shellShowsConcurrentChannelList(context)
+        ? routedChannelId
+        : null;
     final bool hasReceivedInitialConversations = ref.watch(
       dmViewModelProvider.select(
         (DmViewState state) => state.hasReceivedInitialConversations,
@@ -322,7 +327,9 @@ class _DMListState extends ConsumerState<DMList> {
                           _buildNavButton(
                             context,
                             icon: PhosphorIconsFill.users,
-                            label: 'Friends',
+                            label: FluxerLocalizations.of(
+                              context,
+                            ).dmListFriendsButton,
                             isSelected: isFriends,
                             badgeCount:
                                 ref
@@ -364,6 +371,7 @@ class _DMListState extends ConsumerState<DMList> {
                         context,
                         visibleConvos,
                         selectedId,
+                        routedChannelId: routedChannelId,
                         isMobile: isMobile,
                         pinnedIds: pinnedIds,
                         mutedIds: mutedIds,
@@ -373,7 +381,11 @@ class _DMListState extends ConsumerState<DMList> {
             ],
           ),
           if (isMobile)
-            Positioned(right: 16, bottom: 16, child: _buildComposeFab(context)),
+            PositionedDirectional(
+              end: 16,
+              bottom: 16,
+              child: _buildComposeFab(context),
+            ),
         ],
       ),
     );
@@ -533,7 +545,12 @@ class _DMListState extends ConsumerState<DMList> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
         child: Container(
-          padding: EdgeInsets.fromLTRB(iconOnlyTitle ? 12 : 16, 8, 8, 8),
+          padding: EdgeInsetsDirectional.fromSTEB(
+            iconOnlyTitle ? 12 : 16,
+            8,
+            8,
+            8,
+          ),
           child: Row(
             children: [
               if (iconOnlyTitle) ...[
@@ -551,6 +568,7 @@ class _DMListState extends ConsumerState<DMList> {
                 context,
                 onTap: () =>
                     unawaited(QuickSwitcherBottomSheet.show(context, ref)),
+                semanticLabel: l10n.uiSearch,
                 padding: const EdgeInsets.all(8),
                 child: PhosphorIcon(
                   PhosphorIconsBold.magnifyingGlass,
@@ -588,9 +606,9 @@ class _DMListState extends ConsumerState<DMList> {
                     ),
                   ),
                   if (pendingCount > 0)
-                    Positioned(
+                    PositionedDirectional(
                       top: -6,
-                      right: -6,
+                      end: -6,
                       child: FluxerBadgeEntrance(
                         child: FluxerBadge.count(
                           count: pendingCount,
@@ -630,6 +648,7 @@ class _DMListState extends ConsumerState<DMList> {
     BuildContext context,
     List<DmConversation> convos,
     String? selectedId, {
+    required String? routedChannelId,
     required bool isMobile,
     required Set<String> pinnedIds,
     required Set<String> mutedIds,
@@ -640,12 +659,12 @@ class _DMListState extends ConsumerState<DMList> {
         : EdgeInsets.zero;
     final int leadingRows = isMobile ? 1 : 0;
     if (_needsScrollRestore && convos.isNotEmpty) {
-      final int selectedConvoIndex = convos.indexWhere(
-        (DmConversation c) => c.id == selectedId,
+      final int routedConvoIndex = convos.indexWhere(
+        (DmConversation c) => c.id == routedChannelId,
       );
       _scheduleScrollRestore(
-        selectedRowIndex: selectedConvoIndex >= 0
-            ? selectedConvoIndex + leadingRows
+        routedRowIndex: routedConvoIndex >= 0
+            ? routedConvoIndex + leadingRows
             : null,
         rowExtent: isMobile ? _kMobileRowExtent : _kDesktopRowExtent,
         topPadding: listPadding.top,
@@ -691,14 +710,18 @@ class _DMListState extends ConsumerState<DMList> {
             final convo = convos[index - leadingRows];
             final isSelected = convo.id == selectedId;
 
-            return _buildConvoTile(
-              context,
+            return Consumer(
               key: ValueKey<String>(convo.id),
-              convo: convo,
-              isSelected: isSelected,
-              isMobile: isMobile,
-              isPinned: pinnedIds.contains(convo.id),
-              isMuted: mutedIds.contains(convo.id),
+              builder: (BuildContext context, WidgetRef rowRef, _) =>
+                  _buildConvoTile(
+                    context,
+                    rowRef: rowRef,
+                    convo: convo,
+                    isSelected: isSelected,
+                    isMobile: isMobile,
+                    isPinned: pinnedIds.contains(convo.id),
+                    isMuted: mutedIds.contains(convo.id),
+                  ),
             );
           },
         ),
@@ -719,7 +742,10 @@ class _DMListState extends ConsumerState<DMList> {
       horizontal: context.layout.s2,
       vertical: _kMobileRowGap / 2,
     ),
-    padding: EdgeInsets.only(left: context.layout.s2, right: context.layout.s3),
+    padding: EdgeInsetsDirectional.only(
+      start: context.layout.s2,
+      end: context.layout.s3,
+    ),
     onTap: () {
       if (userId != null) {
         unawaited(_navigateToDmChannel(userId));
@@ -830,9 +856,9 @@ class _DMListState extends ConsumerState<DMList> {
 
   Widget _buildConvoTile(
     BuildContext context, {
+    required WidgetRef rowRef,
     required DmConversation convo,
     required bool isSelected,
-    Key? key,
     bool isMobile = false,
     bool isPinned = false,
     bool isMuted = false,
@@ -844,10 +870,12 @@ class _DMListState extends ConsumerState<DMList> {
         (isMobile ? _kMobileRowExtent : _kDesktopRowExtent) - rowGap;
     final layout = context.layout;
     final hasUnread = c.unreadCount > 0;
-    final currentUserId = ref.watch(currentUserIdProvider);
+    final currentUserId = rowRef.watch(currentUserIdProvider);
     final FluxerLocalizations l10n = FluxerLocalizations.of(context);
     final String displayName = c.displayNameWith(
-      c.isGroup ? null : ref.watch(friendNicknameProvider(c.recipientId)).value,
+      c.isGroup
+          ? null
+          : rowRef.watch(friendNicknameProvider(c.recipientId)).value,
       l10n: l10n,
       currentUserId: currentUserId,
     );
@@ -868,7 +896,6 @@ class _DMListState extends ConsumerState<DMList> {
     final String? lastMessageId = c.lastMessageId;
 
     return Stack(
-      key: key,
       clipBehavior: Clip.none,
       children: [
         if (hasUnread) ChannelUnreadIndicator.positioned(faded: isMuted),
@@ -883,7 +910,10 @@ class _DMListState extends ConsumerState<DMList> {
               horizontal: layout.s2,
               vertical: rowGap / 2,
             ),
-            padding: EdgeInsets.only(left: layout.s2, right: layout.s3),
+            padding: EdgeInsetsDirectional.only(
+              start: layout.s2,
+              end: layout.s3,
+            ),
             semanticLabel: navigationItemSemanticLabel(
               l10n: l10n,
               name: displayName,
@@ -941,7 +971,7 @@ class _DMListState extends ConsumerState<DMList> {
                         children: [
                           if (isPinned)
                             Padding(
-                              padding: const EdgeInsets.only(right: 4),
+                              padding: const EdgeInsetsDirectional.only(end: 4),
                               child: PhosphorIcon(
                                 PhosphorIconsFill.pushPin,
                                 size: 12,
@@ -958,7 +988,9 @@ class _DMListState extends ConsumerState<DMList> {
                           ),
                           if (!c.isGroup && isBotOrSystemDmRecipient(c))
                             Padding(
-                              padding: const EdgeInsets.only(left: 4),
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 4,
+                              ),
                               child: FluxerUserTag(isSystem: c.isSystem),
                             ),
                         ],
@@ -975,7 +1007,7 @@ class _DMListState extends ConsumerState<DMList> {
                 const SizedBox(width: 8),
                 FittedBox(
                   fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
+                  alignment: AlignmentDirectional.centerEnd,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -1113,6 +1145,9 @@ class _DMListState extends ConsumerState<DMList> {
       leading: _DmContextMenuLeading(convo: convo, displayName: displayName),
       subtitle: convo.isGroup ? _DmContextMenuSubtitle(convo: convo) : null,
       initialChildSize: FluxerBottomSheet.scrollableSheetHalfSize,
+      desktop: const FluxerDesktopPresentation(
+        surface: FluxerDesktopSurface.menu,
+      ),
       builder: (sheetContext, scrollController, _) => _DmBottomSheet(
         convo: convo,
         scrollController: scrollController,
@@ -1182,13 +1217,17 @@ class _DMListState extends ConsumerState<DMList> {
         );
       case _DmAction.favoriteDm:
         final repository = ref.read(favoriteChannelsRepositoryProvider);
+        final String favoriteNickname = dmConversationDisplayName(
+          FluxerLocalizations.of(context),
+          convo,
+        );
         if (await repository.isFavorite(convo.id)) {
           await repository.removeChannel(convo.id);
         } else {
           await repository.addChannel(
             channelId: convo.id,
             guildId: favoriteDmGuildId,
-            nickname: convo.displayName,
+            nickname: favoriteNickname,
           );
         }
       case _DmAction.mute15Min:
@@ -1255,13 +1294,10 @@ class _DMListState extends ConsumerState<DMList> {
         if (!mounted) {
           break;
         }
-        final l10n = FluxerLocalizations.of(context);
         await FluxerConfirmModal.show(
           context,
           title: l10n.dmRemoveFriendConfirmTitle,
-          description: l10n.dmRemoveFriendConfirmDescription(
-            convo.displayNameWith(rel?.nickname),
-          ),
+          description: l10n.dmRemoveFriendConfirmDescription(displayName),
           confirmLabel: l10n.dmRemoveFriend,
           isDanger: true,
           onConfirm: () {
@@ -1316,13 +1352,10 @@ class _DMListState extends ConsumerState<DMList> {
         if (!mounted) {
           break;
         }
-        final l10n = FluxerLocalizations.of(context);
         await FluxerConfirmModal.show(
           context,
           title: l10n.dmBlockConfirmTitle,
-          description: l10n.dmBlockConfirmDescription(
-            convo.displayNameWith(rel?.nickname),
-          ),
+          description: l10n.dmBlockConfirmDescription(displayName),
           confirmLabel: l10n.dmBlock,
           isDanger: true,
           onConfirm: () {
@@ -1340,13 +1373,10 @@ class _DMListState extends ConsumerState<DMList> {
         if (!mounted) {
           break;
         }
-        final l10n = FluxerLocalizations.of(context);
         await FluxerConfirmModal.show(
           context,
           title: l10n.userProfileUnblockConfirmTitle,
-          description: l10n.userProfileUnblockConfirmDescription(
-            convo.displayNameWith(rel?.nickname),
-          ),
+          description: l10n.userProfileUnblockConfirmDescription(displayName),
           confirmLabel: l10n.dmUnblock,
           onConfirm: () {
             unawaited(
@@ -1372,14 +1402,12 @@ class _DMListState extends ConsumerState<DMList> {
         if (!mounted) {
           break;
         }
-        final l10n = FluxerLocalizations.of(context);
-        final String closeName = convo.displayNameWith(rel?.nickname);
         final confirmed = await FluxerConfirmModal.show(
           context,
           title: convo.isGroup ? l10n.dmLeaveGroup : l10n.dmCloseDmConfirmTitle,
           description: convo.isGroup
-              ? l10n.channelDetailsLeaveGroupDescription(closeName)
-              : l10n.dmCloseDmConfirmDescription(closeName),
+              ? l10n.channelDetailsLeaveGroupDescription(displayName)
+              : l10n.dmCloseDmConfirmDescription(displayName),
           confirmLabel: convo.isGroup ? l10n.dmLeaveGroup : l10n.dmCloseDm,
           isDanger: true,
           onConfirm: () {
@@ -1760,6 +1788,9 @@ class _DmBottomSheet extends ConsumerWidget {
         title: l10n.dmMuteConversation,
         onBack: () => Navigator.of(context).pop(),
         initialChildSize: FluxerBottomSheet.scrollableSheetHalfSize,
+        desktop: const FluxerDesktopPresentation(
+          surface: FluxerDesktopSurface.menu,
+        ),
         builder: (sheetContext, scrollController, _) {
           final layout = sheetContext.layout;
           return ListView(

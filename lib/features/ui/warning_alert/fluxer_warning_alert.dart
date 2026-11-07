@@ -2,7 +2,7 @@ import 'package:fluxer_app/core/theme/fluxer_theme_extension.dart';
 import 'package:fluxer_app/features/ui/bottom_sheet/fluxer_bottom_sheet.dart';
 import 'package:fluxer_app/features/ui/preview/fluxer_widget_preview.dart';
 import 'package:fluxer_app/material_ui.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:fluxer_app/shared/icons/phosphor.dart';
 
 enum FluxerAlertVariant { info, warning, danger }
 
@@ -11,12 +11,16 @@ class FluxerWarningAlert extends StatelessWidget {
     required this.message,
     this.title,
     this.variant = FluxerAlertVariant.warning,
+    this.onDismiss,
+    this.dismissLabel,
     super.key,
   });
 
   final String message;
   final String? title;
   final FluxerAlertVariant variant;
+  final VoidCallback? onDismiss;
+  final String? dismissLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +50,9 @@ class FluxerWarningAlert extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: FluxerBottomSheet.cardColorOf(context),
-          border: Border(left: BorderSide(color: borderColor, width: 4)),
+          border: BorderDirectional(
+            start: BorderSide(color: borderColor, width: 4),
+          ),
           borderRadius: layout.radiusSm,
         ),
         padding: EdgeInsets.symmetric(
@@ -82,6 +88,23 @@ class FluxerWarningAlert extends StatelessWidget {
                 ),
               ),
             ),
+            if (onDismiss != null)
+              Semantics(
+                container: true,
+                button: true,
+                label: dismissLabel,
+                onTap: onDismiss,
+                excludeSemantics: true,
+                child: IconButton(
+                  onPressed: onDismiss,
+                  tooltip: dismissLabel,
+                  icon: Icon(
+                    PhosphorIconsBold.x,
+                    size: 16,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
