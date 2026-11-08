@@ -20,6 +20,7 @@ import 'package:fluxer_app/core/observability/measure_log_redaction.dart';
 import 'package:fluxer_app/core/observability/observability_reporting_provider.dart';
 import 'package:fluxer_app/core/observability/reporting_consent/app_foreground_session_watchdog.dart';
 import 'package:fluxer_app/core/observability/reporting_consent/observability_reporting_prompt_coordinator.dart';
+import 'package:fluxer_app/core/observability/startup_timeline.dart';
 import 'package:fluxer_app/core/platform/bundled_root_certificates.dart';
 import 'package:fluxer_app/core/platform/fluxer_platform.dart';
 import 'package:fluxer_app/core/providers/app/app_startup_provider.dart';
@@ -103,13 +104,17 @@ void _runFluxerApp(ProviderContainer container) {
 Future<void> _bootstrapFluxer(List<String> args) async {
   FluxerAppZoomBinding.ensureInitialized();
   registerBundledLicenses();
-  await trustBundledRootCertificates();
+  final Future<void> rootCertificates = _bootstrapStep(
+    'app.bootstrap.root_certificates',
+    trustBundledRootCertificates,
+  );
   unawaited(ApplePushService.installReplyHandler());
   assertPushProviderBuildConfig();
   if (Platform.isAndroid &&
       PushProviderGuard.isUnifiedPush &&
       args.contains('--unifiedpush-bg')) {
     DartPluginRegistrant.ensureInitialized();
+    await rootCertificates;
     await UnifiedPushService.ensureBackgroundInitialized();
     return;
   }
@@ -144,6 +149,7 @@ Future<void> _bootstrapFluxer(List<String> args) async {
     );
   }
   await Future.wait<void>([
+    rootCertificates,
     () async {
       await _bootstrapStep(
         'app.bootstrap.foreground_session',
@@ -215,9 +221,15 @@ Future<void> _bootstrapFluxer(List<String> args) async {
     'app.run',
     () => _runFluxerApp(container),
   );
+  unawaited(
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized.then(
+      (_) => StartupTimeline.instance.markFirstFrame(),
+    ),
+  );
 }
 
 Future<void> main(List<String> args) async {
+  StartupTimeline.instance.start();
   await runZonedGuarded<Future<void>>(
     () async {
       await _bootstrapFluxer(args);
