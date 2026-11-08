@@ -1108,26 +1108,29 @@ class GatewayEventHandler {
               roleIdsByGuildId: snapshotRoleIdsByGuildId,
             )).channelIds,
           );
-          final readyGuildIds = <String>{
-            for (final rawGuild in event.rawGuilds)
-              if (rawGuild['id'] is String) rawGuild['id'] as String,
-          };
-          final Set<String> localIdsNow = (await database.guildDao.getServers())
-              .map((row) => row.id)
-              .toSet();
-          prunedGuildIds.addAll(
-            await removeGuildsNotInLocalDb(
-              database,
-              guildIdsKeptAfterMembershipSync(
-                apiGuildIds: readyGuildIds,
-                localGuildIdsBeforeFetch: localGuildIdsBeforeReady,
-                localGuildIdsAfterUpsert: localIdsNow,
-              ),
-            ),
-          );
         }
 
         fanoutMs = phase.elapsedMilliseconds;
+      }
+
+      if (diffAgainstCache) {
+        final readyGuildIds = <String>{
+          for (final rawGuild in event.rawGuilds)
+            if (rawGuild['id'] is String) rawGuild['id'] as String,
+        };
+        final Set<String> localIdsNow = (await database.guildDao.getServers())
+            .map((row) => row.id)
+            .toSet();
+        prunedGuildIds.addAll(
+          await removeGuildsNotInLocalDb(
+            database,
+            guildIdsKeptAfterMembershipSync(
+              apiGuildIds: readyGuildIds,
+              localGuildIdsBeforeFetch: localGuildIdsBeforeReady,
+              localGuildIdsAfterUpsert: localIdsNow,
+            ),
+          ),
+        );
       }
 
       phase
@@ -1241,10 +1244,19 @@ class GatewayEventHandler {
           final String? sticky = keepManual
               ? existing?.stickyUnreadMessageId
               : null;
+          final String? outstandingAck = keepManual
+              ? null
+              : ackBatcher?.outstandingAck(rs.id);
+          final bool localAckAhead =
+              compareSnowflakeIds(outstandingAck, rs.lastMessageId) > 0;
+          final String? lastMessageId = localAckAhead
+              ? outstandingAck
+              : rs.lastMessageId;
+          final int mentionCount = localAckAhead ? 0 : rs.mentionCount;
           final db.ReadStatesCompanion companion = db.ReadStatesCompanion(
             channelId: Value(rs.id),
-            lastMessageId: Value(rs.lastMessageId),
-            mentionCount: Value(rs.mentionCount),
+            lastMessageId: Value(lastMessageId),
+            mentionCount: Value(mentionCount),
             lastPinTimestamp: Value(rs.lastPinTimestamp),
             manual: Value(keepManual),
             stickyUnreadMessageId: Value(sticky),
@@ -1256,8 +1268,8 @@ class GatewayEventHandler {
           }
           readStateWriteBatcher?.adoptPersisted(
             channelId: rs.id,
-            lastMessageId: rs.lastMessageId,
-            mentionCount: rs.mentionCount,
+            lastMessageId: lastMessageId,
+            mentionCount: mentionCount,
             manual: keepManual,
             stickyUnreadMessageId: sticky,
             lastPinTimestamp: rs.lastPinTimestamp,
@@ -1266,8 +1278,8 @@ class GatewayEventHandler {
           );
           existingByChannelId[rs.id] = db.ReadState(
             channelId: rs.id,
-            lastMessageId: rs.lastMessageId,
-            mentionCount: rs.mentionCount,
+            lastMessageId: lastMessageId,
+            mentionCount: mentionCount,
             lastPinTimestamp: rs.lastPinTimestamp,
             manual: keepManual,
             stickyUnreadMessageId: sticky,
@@ -1294,6 +1306,7 @@ class GatewayEventHandler {
 
       final guildSettings = event.userGuildSettings;
       if (guildSettings != null) {
+        await database.userGuildSettingsDao.clearAll();
         await database.userGuildSettingsDao
             .upsertAll(<db.UserGuildSettingsTableCompanion>[
               for (final gs in guildSettings)
@@ -1339,6 +1352,7 @@ class GatewayEventHandler {
 
       final rtcRegions = event.rtcRegions;
       if (rtcRegions != null) {
+        await database.rtcRegionsDao.clearAll();
         for (final region in rtcRegions) {
           final id = region['id'] as String?;
           if (id == null) {
@@ -1920,7 +1934,7 @@ class GatewayEventHandler {
   }) async {
     switch (decision.kind) {
       case ReadStateIncomingMessageKind.ackCurrentUserMessage:
-        ackBatcher?.cancel(msg.channelId);
+        ackBatcher?.cancelIfCovered(msg.channelId, msg.id);
         await _enqueueOrAckReadState(
           channelId: msg.channelId,
           messageId: msg.id,
