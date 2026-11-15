@@ -130,8 +130,11 @@ jobs:
         run: |
           if [ -n "$GOOGLE_SERVICES_JSON_ANDROID" ]; then
             echo "$GOOGLE_SERVICES_JSON_ANDROID" > android/app/google-services.json
-          else
+          elif [ -f android/app/google-services.json ]; then
             echo "::warning::GOOGLE_SERVICES_JSON_ANDROID secret is not set. Existing android/app/google-services.json will be used."
+          else
+            echo "::error::GOOGLE_SERVICES_JSON_ANDROID secret is not set and android/app/google-services.json is missing. Add a google-services.json that contains an Android client for package com.fluxer."
+            exit 1
           fi
 
       - name: Write Measure Android config
