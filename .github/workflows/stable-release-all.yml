@@ -46,17 +46,6 @@ jobs:
       stable_release_tag: ${{ needs.draft-release.outputs.tag_name }}
     secrets: inherit
 
-  # android-fcm:
-  #   name: Android FCM build
-  #   needs:
-  #     - draft-release
-  #     - allocate-android-build-number
-  #   uses: ./.github/workflows/android-stable-fcm.yml
-  #   with:
-  #     android_build_number: ${{ needs.allocate-android-build-number.outputs.build_number }}
-  #   secrets: inherit
-
-<<<<<<< HEAD
   android-fcm:
     name: Android FCM build
     needs:
