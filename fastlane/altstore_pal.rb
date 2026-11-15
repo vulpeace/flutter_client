@@ -3,6 +3,7 @@ require "json"
 require "fileutils"
 require "net/http"
 require "open-uri"
+require "open3"
 require "tmpdir"
 require "uri"
 
@@ -21,6 +22,7 @@ module AltstorePal
 
   REVIEW_TYPE_MUTABLE_STATES = [
     Spaceship::ConnectAPI::AppStoreVersion::AppVersionState::PREPARE_FOR_SUBMISSION,
+    Spaceship::ConnectAPI::AppStoreVersion::AppVersionState::READY_FOR_REVIEW,
     Spaceship::ConnectAPI::AppStoreVersion::AppVersionState::DEVELOPER_REJECTED,
     Spaceship::ConnectAPI::AppStoreVersion::AppVersionState::REJECTED,
     Spaceship::ConnectAPI::AppStoreVersion::AppVersionState::METADATA_REJECTED,
@@ -94,14 +96,17 @@ module AltstorePal
   end
 
   def ensure_notarization_review_type!(version)
-    notarization = Spaceship::ConnectAPI::AppStoreVersion::ReviewType::NOTARIZATION
-    return true if version.review_type.to_s == notarization
+    ensure_review_type!(version, Spaceship::ConnectAPI::AppStoreVersion::ReviewType::NOTARIZATION)
+  end
+
+  def ensure_review_type!(version, review_type)
+    return true if version.review_type.to_s == review_type
 
     state = version.app_version_state.to_s
     return false unless state.empty? || REVIEW_TYPE_MUTABLE_STATES.include?(state)
 
     begin
-      version.update(attributes: { reviewType: notarization })
+      version.update(attributes: { reviewType: review_type })
     rescue Spaceship::UnexpectedResponse => error
       return false if error.message.include?("reviewType")
 
@@ -109,7 +114,37 @@ module AltstorePal
     end
 
     refreshed = Spaceship::ConnectAPI::AppStoreVersion.get(app_store_version_id: version.id)
-    refreshed&.review_type.to_s == notarization
+    refreshed&.review_type.to_s == review_type
+  end
+
+  def prepare_app_store_release_version!(api_key:, app_identifier:, app_version:, platform: Spaceship::ConnectAPI::Platform::IOS)
+    connect_api(api_key)
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    app_store = Spaceship::ConnectAPI::AppStoreVersion::ReviewType::APP_STORE
+    notarization = Spaceship::ConnectAPI::AppStoreVersion::ReviewType::NOTARIZATION
+
+    version = find_app_store_version(app, app_version: app_version, platform: platform)
+    if version
+      previous = version.review_type.to_s
+      unless ensure_review_type!(version, app_store)
+        fail!(
+          "App Store Connect version #{app_version} is #{previous} " \
+          "(#{version.app_version_state}) and its review type cannot be changed to #{app_store}. " \
+          "In App Store Connect, remove it from its review submission under App Review or set its " \
+          "review type to App Store, then re-run this workflow."
+        )
+      end
+      log("Switched App Store Connect version #{app_version} from #{previous} to #{app_store} review.") if previous != app_store
+      return
+    end
+
+    editable = app.get_edit_app_store_version(platform: platform)
+    return unless editable && editable.review_type.to_s == notarization
+
+    log(
+      "Unreleased version #{editable.version_string} (#{editable.app_version_state}) is an AltStore PAL " \
+      "notarization version. Do not attach build #{app_version} to it; App Store review needs a #{app_store} version."
+    )
   end
 
   def prepare_altstore_pal_build_version(
@@ -300,6 +335,13 @@ module AltstorePal
         repo_slug: repo_slug,
         gh_token: gh_token
       )
+
+      if release_draft?(gh_token: gh_token, stable_tag: stable_tag, repo_slug: repo_slug)
+        log(
+          "GitHub release #{stable_tag} is still a draft. source.json will point at #{stable_tag}, " \
+          "and its download links work once the release is published under that tag."
+        )
+      end
 
       if source_json_current?(version: version, build_version: build_version)
         log("source.json already lists #{version} (#{build_version}); skipping edit.")
@@ -500,6 +542,20 @@ module AltstorePal
 
     gh!(gh_token, "release", "view", stable_tag, "--repo", repo_slug)
     gh!(gh_token, "release", "upload", stable_tag, *upload_paths, "--repo", repo_slug, "--clobber")
+  end
+
+  def release_draft?(gh_token:, stable_tag:, repo_slug:)
+    output, status = Open3.capture2(
+      { "GH_TOKEN" => gh_token },
+      "gh", "release", "view", stable_tag, "--repo", repo_slug, "--json", "isDraft", "--jq", ".isDraft"
+    )
+    fail!("gh release view #{stable_tag} failed.") unless status.success?
+
+    case output.strip
+    when "true" then true
+    when "false" then false
+    else fail!("Could not read draft state of GitHub release #{stable_tag}: #{output.strip}")
+    end
   end
 
   def source_json_current?(version:, build_version:)
