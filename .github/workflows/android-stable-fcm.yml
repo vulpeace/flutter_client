@@ -176,13 +176,6 @@ jobs:
           path: build/app/outputs/flutter-apk/*-stablefcm-release.apk
           if-no-files-found: error
 
-      - name: Upload stable FCM AAB artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: stable-fcm-aab
-          path: build/app/outputs/bundle/stableFcmRelease/app-stable-fcm-release.aab
-          if-no-files-found: error
-
       - name: Publish APK to a release
         env:
           GH_TOKEN: ${{ github.token }}
