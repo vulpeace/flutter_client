@@ -210,7 +210,6 @@ jobs:
         with:
           patterns: |
             build/app/outputs/flutter-apk/*-stablefcm-release.apk
-            build/app/outputs/bundle/stableFcmRelease/app-stable-fcm-release.aab
 
       - name: Upload stable AAB to Google Play as draft
         env:
