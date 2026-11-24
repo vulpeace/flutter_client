@@ -99,6 +99,16 @@ jobs:
       android_build_number: ${{ needs.allocate-android-build-number.outputs.build_number }}
     secrets: inherit
 
+  android-oss:
+    name: Android OSS build
+    needs:
+      - draft-release
+      - allocate-android-build-number
+    uses: ./.github/workflows/android-stable-oss.yml
+    with:
+      android_build_number: ${{ needs.allocate-android-build-number.outputs.build_number }}
+    secrets: inherit
+
   publish-release-assets:
     name: Upload Android assets to draft release
     needs: [draft-release, android-fcm, android-oss]
@@ -114,6 +124,18 @@ jobs:
         with:
           name: stable-fcm-apk
           path: release-assets/fcm
+
+      - name: Download FCM AAB artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: stable-fcm-aab
+          path: release-assets/fcm
+
+      - name: Download OSS APK artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: stable-oss-apk
+          path: release-assets/oss
 
       - name: Create token
         id: create-token
